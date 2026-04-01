@@ -1,0 +1,31 @@
+trigger: none
+pr:
+  - main
+
+pool:
+  name: AppTest Debian
+  demands: Agent.OS -equals Linux
+
+resources:
+  repositories:
+    - repository: PipelineTemplates
+      type: git
+      name: CyberLab-Services/pipeline-templates
+      ref: refs/heads/main
+      trigger: none
+    # update container image reference
+    - repository: azul-app-azure
+      endpoint: AustralianCyberSecurityCentre
+      type: github
+      name: AustralianCyberSecurityCentre/azul-app-azure
+      ref: refs/heads/main
+      trigger: none
+
+extends:
+  template: v2/stages/test-build-publish.yaml@PipelineTemplates
+  parameters:
+    is_python: true
+    is_dev: true
+    is_docker: true
+    is_deploy: true
+    deploy_subdir: azul-dev
