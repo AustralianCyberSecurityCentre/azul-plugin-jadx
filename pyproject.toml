@@ -1,0 +1,136 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "azul-plugin-jadx"
+description = "Decompiles Android APK/DEX files using JADX"
+dynamic = ["version"]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+  { name="Azul"},
+]
+requires-python = ">=3.12"
+classifiers=[
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "azul-runner>=9.0.38",
+    "defusedxml>=0.7.1",
+    "python-magic>=0.4.27",
+]
+
+[project.scripts]
+azul-plugin-jadx = "azul_plugin_jadx.main:main"
+
+[project.urls]
+Documentation = "https://australiancybersecuritycentre.github.io/azul/"
+Repository = "https://github.com/AustralianCyberSecurityCentre/azul-plugin-jadx"
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+version_scheme = "only-version"
+
+[tool.hatch.version.fallback]
+version = "0.0.0"
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
+[dependency-groups]
+dev = [
+    "azul-runner[test-utils]>=9.0.38",
+    "cart>=1.2.3",
+    "pytest>=9.0.2",
+    "tox>=4.34.1",
+]
+
+[tool.ruff]
+# formatter config
+line-length = 119
+indent-width = 4
+target-version = "py312"
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".env",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+# Flake8 linting equivalent but for ruff
+[tool.ruff.lint]
+select = [
+  # isort
+  "I",
+  # Code styles
+  "E4",
+  "E7",
+  "E9",
+  # pyflakes
+  "F",
+  # flake8 bug bear
+  "B",
+  # flake8 doc strings
+  "D",
+  # bandit
+  "S",
+]
+ignore = ["B008","C901","D104","D107","E203"]
+exclude = [
+    "tests/*",
+]
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+
+[tool.ruff.lint.pydocstyle]
+# Use the Google docstring convention
+convention = "google"
+
+# Make formatter match black
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"

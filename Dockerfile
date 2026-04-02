@@ -18,13 +18,6 @@ ARG PIP_EXTRA_INDEX_URL
 
 COPY debian.txt /tmp/src/
 
-# Add micoroft gpg keys.
-RUN apt-get update && \
-    apt-get install curl -y --no-install-recommends && \
-    curl -sSL -O https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb && \
-    dpkg -i packages-microsoft-prod.deb && \
-    rm packages-microsoft-prod.deb
-
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
@@ -54,13 +47,6 @@ RUN if [ "$GIT_BRANCH_NAME" = "refs/heads/dev" ] ; then \
 FROM $REGISTRY/$BASE_IMAGE:$BASE_TAG AS base
 ENV DEBIAN_FRONTEND=noninteractive
 COPY debian.txt /tmp/src/
-
-# Add micoroft gpg keys.
-RUN apt-get update && \
-    apt-get install curl -y --no-install-recommends && \
-    curl -sSL -O https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb && \
-    dpkg -i packages-microsoft-prod.deb && \
-    rm packages-microsoft-prod.deb
 
 RUN apt-get update && \
     apt-get upgrade -y && \
