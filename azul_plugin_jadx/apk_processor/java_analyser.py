@@ -34,10 +34,6 @@ _RE_PACKAGE = re.compile(r"^\s*package\s+([\w.]+)\s*;")
 # Examples: m9869a, mo9639b, m9871a, mo9590c
 _RE_JADX_METHOD = re.compile(r"^mo?\d{4,}[a-z]+$")
 
-# Matches JADX-generated obfuscated class names (produced by --deobf renaming).
-# Examples: C2636f, AbstractC2631a, InterfaceC2678a, EnumC1234a
-_RE_JADX_CLASS = re.compile(r"^(?:Abstract|Interface|Enum)?C\d{4,}[a-z]+$")
-
 # Maximum number of values emitted per feature key to prevent unbounded feature lists.
 _MAX_FEATURES_PER_KEY = 5000
 
@@ -116,32 +112,50 @@ def _analyse_single_file(java_file: str, features: _CodeFeatures) -> None:
     # --- Scan for type and method declarations ---
     # Track the current class context (outermost declared type in this file).
     current_class = ""
+    # Track whether a JADX rename comment directly precedes the current line.
+    pending_jadx_rename = False
 
     for line in lines:
+        stripped = line.strip()
+
+        # JADX rename / informational comments — update pending state, don't reset it.
+        if stripped.startswith("/*") or stripped.startswith("*"):
+            if "JADX INFO: renamed from:" in stripped:
+                pending_jadx_rename = True
+            continue
+        if stripped.startswith("//") or stripped.startswith("@") or not stripped:
+            continue
+
         # Type declaration?
         tm = _RE_TYPE_DECL.match(line)
         if tm:
+            is_renamed = pending_jadx_rename
+            pending_jadx_rename = False
+
             kind = tm.group(1)  # "class", "enum", or "interface"
             raw_name = tm.group(2)
 
-            # Split on $ to handle both outer and inner class names.
-            for part in raw_name.split("$"):
-                if not part or _RE_JADX_CLASS.match(part):
-                    continue
-                features.classes.add(part)
-                if package:
-                    features.package_classes.add(f"{package}.{part}")
+            if not is_renamed:
+                # Split on $ to handle both outer and inner class names.
+                for part in raw_name.split("$"):
+                    if not part:
+                        continue
+                    features.classes.add(part)
+                    if package:
+                        features.package_classes.add(f"{package}.{part}")
 
-            if not _RE_JADX_CLASS.match(raw_name):
                 if kind == "enum":
                     features.enums.add(raw_name)
                 elif kind == "interface":
                     features.interfaces.add(raw_name)
 
-            # Use the first (outermost) declared type as the class context for methods.
+            # Use the first (outermost) declared type as the class context for methods,
+            # even if it is renamed — we use is_renamed below to gate method emission.
             if not current_class:
-                current_class = raw_name
+                current_class = raw_name if not is_renamed else ""
             continue
+
+        pending_jadx_rename = False
 
         # Method declaration?
         if current_class:

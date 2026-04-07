@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+import zipfile
 
 import magic
 from azul_runner import (
@@ -25,6 +26,29 @@ from azul_plugin_jadx.apk_processor import java_analyser, manifest_parser, sourc
 # In production the filter_data_types pre-filter limits which files reach this point.
 _APK_MAGIC_PREFIXES = ("application/vnd.android", "application/zip")
 _DEX_MIME = "application/x-dex"
+
+
+def _prepare_jadx_input(file_path: str, temp_dir: str, mime: str) -> str:
+    """Return the path jadx should receive as input.
+
+    JADX uses the file extension to recognise XAPK bundles.  When azul-runner
+    provides the input as a temp file with no extension, XAPK inputs are not
+    identified and the per-APK ``AndroidManifest.xml`` is never decoded.
+    Detect the XAPK format by checking for ``manifest.json`` at the zip root
+    (the XAPK bundle descriptor) and create a symlink with the correct
+    ``.xapk`` extension so jadx handles it properly.
+    """
+    if mime != "application/zip":
+        return file_path
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:  # noqa: S202
+            if "manifest.json" in zf.namelist():
+                xapk_path = os.path.join(temp_dir, "input.xapk")
+                os.symlink(os.path.abspath(file_path), xapk_path)
+                return xapk_path
+    except Exception:  # noqa: BLE001,S110
+        pass  # noqa: S110
+    return file_path
 
 
 def _find_manifest(resources_dir: str) -> str | None:
@@ -58,6 +82,8 @@ class AzulPluginJadx(BinaryPlugin):
                 # Some file managers report these with the executable/ prefix
                 "executable/android/apk",
                 "executable/android/dex",
+                # XAPK bundles and many APKs that libmagic/file-managers label as generic zip
+                "archive/zip",
             ]
         },
     )
@@ -144,9 +170,11 @@ class AzulPluginJadx(BinaryPlugin):
             return State(State.Label.OPT_OUT, message="Not a valid APK/DEX file.")
 
         with tempfile.TemporaryDirectory() as temp_dir:
+            # Resolve the correct input path for jadx (XAPK needs a .xapk extension).
+            jadx_input = _prepare_jadx_input(file_path, temp_dir, mime)
             # --- Run JADX ---
             try:
-                output_dir = jadx.run_jadx_decompile(file_path, temp_dir)
+                output_dir = jadx.run_jadx_decompile(jadx_input, temp_dir)
             except jadx.NotApkFileError:
                 return self.is_malformed("JADX could not process the file as an APK/DEX.")
             except jadx.MissingOutDirError:
