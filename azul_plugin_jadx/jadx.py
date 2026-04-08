@@ -38,22 +38,7 @@ class UnknownJadxError(JadxError):
 
 
 def run_jadx_decompile(file_path: str, output_dir: str, deobfuscate: bool = True) -> str:
-    """Run JADX to decompile an APK or DEX file into the given output directory.
-
-    Args:
-        file_path: Path to the APK or DEX file to decompile.
-        output_dir: Directory where JADX will write decompiled output.
-        deobfuscate: Whether to enable JADX deobfuscation (--deobf).
-
-    Returns:
-        The output directory path.
-
-    Raises:
-        NotApkFileError: If JADX cannot read the file as an APK/DEX.
-        MissingOutDirError: If JADX did not produce a sources directory.
-        NoJadxFoundError: If the JADX binary cannot be found.
-        UnknownJadxError: If JADX fails for an unknown reason.
-    """
+    """Decompile an APK/DEX file with JADX and return output_dir."""
     options = ["--output-dir", output_dir]
     if deobfuscate:
         options.append("--deobf")
@@ -68,21 +53,7 @@ def run_jadx_decompile(file_path: str, output_dir: str, deobfuscate: bool = True
 
 
 def _run_jadx_and_process_errors(file_path: str, options: list[str]) -> subprocess.CompletedProcess[str]:
-    """Run JADX with the given options and raise typed exceptions on failure.
-
-    Args:
-        file_path: Path to the input file.
-        options: Additional CLI options for JADX.
-
-    Returns:
-        The completed process result.
-
-    Raises:
-        NoJadxFoundError: If the JADX binary cannot be found.
-        FileNotFoundError: If the input file does not exist.
-        NotApkFileError: If JADX reports the file is not a valid APK/DEX.
-        UnknownJadxError: For any other JADX failure.
-    """
+    """Run JADX with the given options, raising typed exceptions on failure."""
     bin_abs_path = (
         shutil.which(JADX_BIN_NAME)
         or (JADX_SYSTEM_BIN if os.path.isfile(JADX_SYSTEM_BIN) else None)
@@ -95,7 +66,7 @@ def _run_jadx_and_process_errors(file_path: str, options: list[str]) -> subproce
         raise FileNotFoundError(f"Could not find the file to run JADX on: '{file_path}'")
 
     try:
-        result: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
+        result = subprocess.run(  # noqa: S603
             [bin_abs_path, *options, file_path], capture_output=True, text=True, timeout=JADX_TIMEOUT
         )
     except subprocess.TimeoutExpired as exc:

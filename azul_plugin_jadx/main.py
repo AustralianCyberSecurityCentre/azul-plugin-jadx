@@ -19,11 +19,8 @@ from azul_runner import (
 from azul_plugin_jadx import jadx
 from azul_plugin_jadx.apk_processor import java_analyser, manifest_parser, source_extractor
 
-# MIME types / magic signatures accepted as APK or DEX input.
-# NOTE: APKs are zip files and libmagic often reports them as application/zip.
-# application/vnd.android covers cases where libmagic correctly identifies the APK.
-# application/zip is the fallback for APKs and XAPK bundles that appear as generic zip.
-# In production the filter_data_types pre-filter limits which files reach this point.
+# APKs are zip files; libmagic often identifies them as application/zip rather than
+# application/vnd.android. filter_data_types limits which files reach this point.
 _APK_MAGIC_PREFIXES = ("application/vnd.android", "application/zip")
 _DEX_MIME = "application/x-dex"
 
@@ -31,12 +28,9 @@ _DEX_MIME = "application/x-dex"
 def _prepare_jadx_input(file_path: str, temp_dir: str, mime: str) -> str:
     """Return the path jadx should receive as input.
 
-    JADX uses the file extension to recognise XAPK bundles.  When azul-runner
-    provides the input as a temp file with no extension, XAPK inputs are not
-    identified and the per-APK ``AndroidManifest.xml`` is never decoded.
-    Detect the XAPK format by checking for ``manifest.json`` at the zip root
-    (the XAPK bundle descriptor) and create a symlink with the correct
-    ``.xapk`` extension so jadx handles it properly.
+    JADX needs a .xapk extension to recognise XAPK bundles. If the input is a zip
+    containing manifest.json (the XAPK bundle descriptor), create a symlink with
+    the correct extension.
     """
     if mime != "application/zip":
         return file_path
@@ -52,12 +46,7 @@ def _prepare_jadx_input(file_path: str, temp_dir: str, mime: str) -> str:
 
 
 def _find_manifest(resources_dir: str) -> str | None:
-    """Walk the JADX resources directory to locate AndroidManifest.xml.
-
-    For XAPK and split-APK inputs the manifest may be nested in a subdirectory
-    rather than at the top of the resources tree.  Returns the shallowest match
-    so that split-APK config manifests do not shadow the primary app manifest.
-    """
+    """Walk resources_dir to find AndroidManifest.xml, returning the shallowest match so split-APK config manifests don't shadow the primary app manifest."""
     if not os.path.isdir(resources_dir):
         return None
     candidates = []
@@ -164,9 +153,7 @@ class AzulPluginJadx(BinaryPlugin):
         except Exception:  # noqa: BLE001
             return State(State.Label.OPT_OUT, message="Could not determine file type.")
 
-        is_apk = any(mime.startswith(prefix) for prefix in _APK_MAGIC_PREFIXES)
-        is_dex = mime == _DEX_MIME
-        if not is_apk and not is_dex:
+        if not any(mime.startswith(p) for p in _APK_MAGIC_PREFIXES) and mime != _DEX_MIME:
             return State(State.Label.OPT_OUT, message="Not a valid APK/DEX file.")
 
         with tempfile.TemporaryDirectory() as temp_dir:

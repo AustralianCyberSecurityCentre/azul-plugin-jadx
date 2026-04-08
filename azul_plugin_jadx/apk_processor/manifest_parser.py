@@ -14,24 +14,11 @@ def _attr(element: Element, name: str) -> str | None:
 
 def _is_user_component(name: str, package_name: str) -> bool:
     """Return True if a component name belongs to the app (not a third-party library)."""
-    if name.startswith("."):
-        return True
-    return name.startswith(package_name)
+    return name.startswith(".") or name.startswith(package_name)
 
 
 def parse_manifest(manifest_path: str) -> dict:
-    """Parse AndroidManifest.xml and return a dict of extracted metadata.
-
-    Args:
-        manifest_path: Absolute path to the AndroidManifest.xml file.
-
-    Returns:
-        A dict with the following keys (values are str, int, or list[str]):
-            package_name, version_code, version_name,
-            min_sdk_version, target_sdk_version, compile_sdk_version,
-            permissions, features_used,
-            activities, services, receivers, providers.
-    """
+    """Parse AndroidManifest.xml and return a dict of extracted metadata."""
     tree = ET.parse(manifest_path)
     root = tree.getroot()
 

@@ -3,43 +3,33 @@
 import re
 from dataclasses import dataclass, field
 
-# Matches type declarations. Captures the kind (class|enum|interface) and name.
-# Examples:
-#   public class Foo
-#   public enum Bar
-#   public interface Baz
-#   class Qux extends ...
+# Type declarations: captures kind (class|enum|interface) and name.
+# e.g. "public class Foo", "enum Bar", "static final class Qux"
 _RE_TYPE_DECL = re.compile(
     r"^\s*(?:(?:public|protected|private|abstract|static|final)\s+)*"
     r"(class|enum|interface)\s+(\w+)"
 )
 
-# Matches method declarations (not constructors).
-# `*` (not `+`) allows package-private methods that have no access modifier keyword.
-# Examples:
-#   public void onCreate(Bundle bundle) {
-#   private static String m9517a() {
-#   void helperMethod() {    <-- package-private, no modifier
+# Method declarations (not constructors).
+# `*` (not `+`) allows package-private methods with no access modifier.
+# e.g. "public void onCreate(Bundle b) {", "void helperMethod() {"
 _RE_METHOD_DECL = re.compile(
     r"^\s*(?:(?:public|protected|private|abstract|static|final|synchronized|native|default)\s+)"
     r"*(?:[\w<>\[\],\s]+?\s+)"  # return type (possibly generic)
     r"(\w+)\s*\("  # method name
 )
 
-# Matches the package declaration at the top of a .java file.
+# Package declaration at the top of a .java file.
 _RE_PACKAGE = re.compile(r"^\s*package\s+([\w.]+)\s*;")
 
-# Matches JADX-generated obfuscated method names (not useful as features).
-# JADX renames obfuscated methods as: optional 'o' + 4+ digits + lowercase suffix.
-# Examples: m9869a, mo9639b, m9871a, mo9590c
+# JADX-generated obfuscated method names (e.g. m9869a, mo9639b) — not useful as features.
 _RE_JADX_METHOD = re.compile(r"^mo?\d{4,}[a-z]+$")
 
 # Maximum number of values emitted per feature key to prevent unbounded feature lists.
 _MAX_FEATURES_PER_KEY = 5000
 
-# Java control-flow keywords the method regex may accidentally match.
-# Includes "synchronized" because `synchronized (lock) {` can be captured as a
-# method declaration when leading whitespace is absorbed into the return-type slot.
+# Java keywords the method regex may accidentally match.
+# Includes "synchronized" because `synchronized (lock) {` looks like a method decl.
 _JAVA_KEYWORDS = frozenset({"if", "for", "while", "switch", "return", "new", "throw", "synchronized"})
 
 
@@ -58,27 +48,10 @@ class _CodeFeatures:
 
 
 def analyse_files(java_files: list[str]) -> dict[str, list[str]]:
-    """Analyse a list of JADX-decompiled .java files and extract code features.
+    """Extract code features from JADX-decompiled .java files.
 
-    The returned dict mirrors the namespace decomposition from the dotnet plugin,
-    with ``package`` substituted for ``namespace``:
-
-    - ``package_class_methods``: ``com.example.MyClass::methodName``
-    - ``class_methods``: ``MyClass::methodName``
-    - ``package_methods``: ``com.example::methodName``
-    - ``classes``: unique outer/inner class names (split on ``$``)
-    - ``package_classes``: ``com.example.MyClass``
-    - ``packages``: ``com.example``
-    - ``enums``: enum type names
-    - ``interfaces``: interface type names
-
-    Results are capped at ``_MAX_FEATURES_PER_KEY`` values per key.
-
-    Args:
-        java_files: List of absolute paths to .java files.
-
-    Returns:
-        A dict mapping feature name to a deduplicated, capped list of string values.
+    Returns a dict mapping feature name to a deduplicated list of values,
+    capped at _MAX_FEATURES_PER_KEY per key.
     """
     features = _CodeFeatures()
 
@@ -100,27 +73,24 @@ def _analyse_single_file(java_file: str, features: _CodeFeatures) -> None:
     # --- Determine package ---
     package = ""
     for line in lines:
-        m = _RE_PACKAGE.match(line)
-        if m:
+        if m := _RE_PACKAGE.match(line):
             package = m.group(1)
             break
 
-    # Add all package levels (e.g. "com", "com.example", "com.example.myapp").
+    # Add all package levels: "com", "com.example", "com.example.myapp".
     if package:
         parts = package.split(".")
         for i in range(1, len(parts) + 1):
             features.packages.add(".".join(parts[:i]))
 
     # --- Scan for type and method declarations ---
-    # Track the current class context (outermost declared type in this file).
-    current_class = ""
-    # Track whether a JADX rename comment directly precedes the current line.
-    pending_jadx_rename = False
+    current_class = ""  # outermost declared type in this file
+    pending_jadx_rename = False  # whether a JADX rename comment precedes this line
 
     for line in lines:
         stripped = line.strip()
 
-        # JADX rename / informational comments — update pending state, don't reset it.
+        # JADX rename / informational comments.
         if stripped.startswith("/*") or stripped.startswith("*"):
             if "JADX INFO: renamed from:" in stripped:
                 pending_jadx_rename = True
@@ -134,11 +104,10 @@ def _analyse_single_file(java_file: str, features: _CodeFeatures) -> None:
             is_renamed = pending_jadx_rename
             pending_jadx_rename = False
 
-            kind = tm.group(1)  # "class", "enum", or "interface"
+            kind = tm.group(1)
             raw_name = tm.group(2)
 
             if not is_renamed:
-                # Split on $ to handle both outer and inner class names.
                 for part in raw_name.split("$"):
                     if not part:
                         continue
@@ -151,8 +120,7 @@ def _analyse_single_file(java_file: str, features: _CodeFeatures) -> None:
                 elif kind == "interface":
                     features.interfaces.add(raw_name)
 
-            # Use the first (outermost) declared type as the class context for methods,
-            # even if it is renamed — we use is_renamed below to gate method emission.
+            # Use the first declared type as the class context for methods.
             if not current_class:
                 current_class = raw_name if not is_renamed else ""
             continue
@@ -164,12 +132,11 @@ def _analyse_single_file(java_file: str, features: _CodeFeatures) -> None:
             mm = _RE_METHOD_DECL.match(line)
             if mm:
                 method_name = mm.group(1)
-                # Skip synthetic Java constructs and JADX-generated obfuscated names.
+                # Skip Java keywords and JADX obfuscated names.
                 if method_name in _JAVA_KEYWORDS or _RE_JADX_METHOD.match(method_name):
                     continue
-                # Skip expression statements like `return new Foo(` or `throw new Bar(`
-                # where the regex misidentifies the class name as a method name because
-                # `\s` in the return-type character class absorbs "return new " etc.
+                # Skip mismatches like `return new Foo(` where the regex captures
+                # a class name as a method name.
                 pre_method = line[: mm.start(1)]
                 if _JAVA_KEYWORDS.intersection(pre_method.split()):
                     continue
