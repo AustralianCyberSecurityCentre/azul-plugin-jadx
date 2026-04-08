@@ -38,7 +38,9 @@ _RE_JADX_METHOD = re.compile(r"^mo?\d{4,}[a-z]+$")
 _MAX_FEATURES_PER_KEY = 5000
 
 # Java control-flow keywords the method regex may accidentally match.
-_JAVA_KEYWORDS = frozenset({"if", "for", "while", "switch", "return", "new", "throw"})
+# Includes "synchronized" because `synchronized (lock) {` can be captured as a
+# method declaration when leading whitespace is absorbed into the return-type slot.
+_JAVA_KEYWORDS = frozenset({"if", "for", "while", "switch", "return", "new", "throw", "synchronized"})
 
 
 @dataclass
@@ -164,6 +166,12 @@ def _analyse_single_file(java_file: str, features: _CodeFeatures) -> None:
                 method_name = mm.group(1)
                 # Skip synthetic Java constructs and JADX-generated obfuscated names.
                 if method_name in _JAVA_KEYWORDS or _RE_JADX_METHOD.match(method_name):
+                    continue
+                # Skip expression statements like `return new Foo(` or `throw new Bar(`
+                # where the regex misidentifies the class name as a method name because
+                # `\s` in the return-type character class absorbs "return new " etc.
+                pre_method = line[: mm.start(1)]
+                if _JAVA_KEYWORDS.intersection(pre_method.split()):
                     continue
                 features.class_methods.add(f"{current_class}::{method_name}")
                 if package:
