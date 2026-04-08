@@ -84,10 +84,15 @@ def _analyse_single_file(java_file: str, features: _CodeFeatures) -> None:
             features.packages.add(".".join(parts[:i]))
 
     # --- Scan for type and method declarations ---
-    current_class = ""  # outermost declared type in this file
+    brace_depth = 0
+    class_stack: list[tuple[str | None, int]] = []  # (class_name, entry_depth); None = renamed
     pending_jadx_rename = False  # whether a JADX rename comment precedes this line
 
     for line in lines:
+        brace_depth += line.count("{") - line.count("}")
+        while class_stack and class_stack[-1][1] > brace_depth:
+            class_stack.pop()
+
         stripped = line.strip()
 
         # JADX rename / informational comments.
@@ -120,15 +125,13 @@ def _analyse_single_file(java_file: str, features: _CodeFeatures) -> None:
                 elif kind == "interface":
                     features.interfaces.add(raw_name)
 
-            # Use the first declared type as the class context for methods.
-            if not current_class:
-                current_class = raw_name if not is_renamed else ""
+            class_stack.append((raw_name if not is_renamed else None, brace_depth))
             continue
 
         pending_jadx_rename = False
 
         # Method declaration?
-        if current_class:
+        if class_stack and (current_class := class_stack[-1][0]):
             mm = _RE_METHOD_DECL.match(line)
             if mm:
                 method_name = mm.group(1)
