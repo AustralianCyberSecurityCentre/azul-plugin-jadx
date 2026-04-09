@@ -42,7 +42,7 @@ class TestExecute(test_template.TestPlugin):
 
         # --- Decompiled source files ---
         self.assertEqual(len(event.data), 1)
-        self.assertTrue(all(d.label == DataLabel.DECOMPILED_CS for d in event.data))
+        self.assertTrue(all(d.label == DataLabel.DECOMPILED_JAVA for d in event.data))
 
         # --- All features ---
         self.assertReprEqual(
@@ -124,7 +124,7 @@ class TestExecute(test_template.TestPlugin):
 
         # --- Decompiled source files ---
         self.assertEqual(len(event.data), 5)
-        self.assertTrue(all(d.label == DataLabel.DECOMPILED_CS for d in event.data))
+        self.assertTrue(all(d.label == DataLabel.DECOMPILED_JAVA for d in event.data))
 
         # --- All features ---
         self.assertReprEqual(
