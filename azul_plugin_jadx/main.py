@@ -1,6 +1,8 @@
 """Decompiles Android APK/DEX files using JADX."""
 
 import os
+import shutil
+import subprocess  # nosec B404
 import tempfile
 import zipfile
 
@@ -17,13 +19,42 @@ from azul_runner import (
 )
 from defusedxml import ElementTree
 
-from azul_plugin_jadx import jadx
 from azul_plugin_jadx.apk_processor import java_analyser, source_extractor
 
 # APKs are zip files; libmagic often identifies them as application/zip rather than
 # application/vnd.android. filter_data_types limits which files reach this point.
 _APK_MAGIC_PREFIXES = ("application/vnd.android", "application/zip")
+_JADX_TIMEOUT = 300
 _DEX_MIME = "application/x-dex"
+
+
+def _run_jadx_decompile(file_path: str, output_dir: str) -> str:
+    """Decompile an APK/DEX file with JADX (deobfuscation always enabled) and return output_dir."""
+    jadx_bin = shutil.which("jadx")
+    if not jadx_bin:
+        raise FileNotFoundError("JADX binary not found on PATH.")
+
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Could not find the file to run JADX on: '{file_path}'")
+
+    try:
+        result = subprocess.run(  # noqa: S603
+            [jadx_bin, "--output-dir", output_dir, "--deobf", file_path],
+            capture_output=True,
+            text=True,
+            timeout=_JADX_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"JADX timed out after {_JADX_TIMEOUT} seconds.") from e
+
+    if result.returncode != 0 and result.returncode not in (1, 3):
+        raise RuntimeError(result.stderr)
+
+    sources_dir = os.path.join(output_dir, "sources")
+    if not os.path.isdir(sources_dir):
+        raise RuntimeError(f"JADX did not produce a sources directory at: {sources_dir}")
+
+    return output_dir
 
 
 def _prepare_jadx_input(file_path: str, temp_dir: str, mime: str) -> str:
@@ -123,15 +154,9 @@ class AzulPluginJadx(BinaryPlugin):
             jadx_input = _prepare_jadx_input(file_path, temp_dir, mime)
             # --- Run JADX ---
             try:
-                output_dir = jadx.run_jadx_decompile(jadx_input, temp_dir)
-            except jadx.NotApkFileError:
-                return self.is_malformed("JADX could not process the file as an APK/DEX.")
-            except jadx.MissingOutDirError:
-                return self.is_malformed("JADX did not produce a sources directory.")
-            except jadx.NoJadxFoundError as e:
-                return self.is_malformed(f"JADX binary not found: {e}")
-            except (jadx.UnknownJadxError, FileNotFoundError) as e:
-                return self.is_malformed(f"JADX failed with unknown error: {e}")
+                output_dir = _run_jadx_decompile(jadx_input, temp_dir)
+            except (RuntimeError, FileNotFoundError) as e:
+                return self.is_malformed(f"JADX failed: {e}")
 
             resources_dir = os.path.join(output_dir, "resources")
             sources_dir = os.path.join(output_dir, "sources")
@@ -147,6 +172,8 @@ class AzulPluginJadx(BinaryPlugin):
                     self.logger.warning("Failed to parse AndroidManifest.xml.")
             else:
                 self.logger.warning("AndroidManifest.xml not found in JADX output.")
+
+            # TODO: Should we add AndroidManifest.xml as a data file here?
 
             # --- Add decompiled source files ---
             if package_name and os.path.isdir(sources_dir):
@@ -169,7 +196,7 @@ class AzulPluginJadx(BinaryPlugin):
                     except Exception:  # noqa: BLE001
                         self.logger.warning("Failed to analyse Java source files.")
             else:
-                self.logger.warning("No package name or sources directory — skipping source analysis.")
+                self.logger.warning("No package name or sources directory -- skipping source analysis.")
 
 
 def main():

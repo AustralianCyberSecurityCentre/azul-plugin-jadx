@@ -44,7 +44,7 @@ class CustomBuildHook(BuildHookInterface):
     """Build hook for running actions at build time."""
 
     def initialize(self, version, build_data):
-        """Download and install jadx."""
+        """Download and install jadx, then symlink it onto PATH."""
         # If jadx is already on PATH, nothing to do.
         if shutil.which("jadx"):
             logging.info("jadx already on PATH, skipping download.")
@@ -52,28 +52,28 @@ class CustomBuildHook(BuildHookInterface):
 
         install_dir = _get_install_dir()
         jadx_bin = os.path.join(install_dir, "bin", "jadx")
-        if os.path.isfile(jadx_bin):
+
+        if not os.path.isfile(jadx_bin):
+            zip_path = f"/tmp/jadx-{JADX_VERSION}.zip"  # noqa: S108
+            try:
+                logging.info(f"Downloading jadx {JADX_VERSION} from {JADX_DOWNLOAD_URL}")
+                urllib.request.urlretrieve(JADX_DOWNLOAD_URL, zip_path)  # noqa: S310
+                _verify_sha256(zip_path, JADX_VERSION_SHA256)
+            except Exception as e:
+                logging.error(f"Failed to download jadx: {e}")
+                sys.exit(-1)
+
+            try:
+                os.makedirs(install_dir, exist_ok=True)
+                with zipfile.ZipFile(zip_path, "r") as zf:
+                    zf.extractall(install_dir)
+                os.chmod(jadx_bin, 0o755)  # noqa: S103
+                logging.info(f"jadx installed to {install_dir}")
+            except Exception as e:
+                logging.error(f"Failed to extract jadx: {e}")
+                sys.exit(-1)
+            finally:
+                if os.path.exists(zip_path):
+                    os.remove(zip_path)
+        else:
             logging.info(f"jadx already installed at {jadx_bin}, skipping download.")
-            return
-
-        zip_path = f"/tmp/jadx-{JADX_VERSION}.zip"  # noqa: S108
-        try:
-            logging.info(f"Downloading jadx {JADX_VERSION} from {JADX_DOWNLOAD_URL}")
-            urllib.request.urlretrieve(JADX_DOWNLOAD_URL, zip_path)  # noqa: S310
-            _verify_sha256(zip_path, JADX_VERSION_SHA256)
-        except Exception as e:
-            logging.error(f"Failed to download jadx: {e}")
-            sys.exit(-1)
-
-        try:
-            os.makedirs(install_dir, exist_ok=True)
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(install_dir)
-            os.chmod(jadx_bin, 0o755)  # noqa: S103
-            logging.info(f"jadx installed to {install_dir}")
-        except Exception as e:
-            logging.error(f"Failed to extract jadx: {e}")
-            sys.exit(-1)
-        finally:
-            if os.path.exists(zip_path):
-                os.remove(zip_path)

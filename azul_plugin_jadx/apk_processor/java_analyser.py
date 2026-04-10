@@ -22,7 +22,7 @@ _RE_METHOD_DECL = re.compile(
 # Package declaration at the top of a .java file.
 _RE_PACKAGE = re.compile(r"^\s*package\s+([\w.]+)\s*;")
 
-# JADX-generated obfuscated method names (e.g. m9869a, mo9639b) — not useful as features.
+# JADX-generated obfuscated method names (e.g. m9869a, mo9639b) -- not useful as features.
 _RE_JADX_METHOD = re.compile(r"^mo?\d{4,}[a-z]+$")
 
 # Maximum number of values emitted per feature key to prevent unbounded feature lists.
@@ -59,7 +59,7 @@ def analyse_files(java_files: list[str]) -> dict[str, list[str]]:
         try:
             _analyse_single_file(java_file, features)
         except Exception:  # noqa: BLE001,S110
-            # Tolerate malformed or unreadable files — continue with others.
+            # Tolerate malformed or unreadable files -- continue with others.
             pass  # noqa: S110
 
     return {k: list(v)[:_MAX_FEATURES_PER_KEY] for k, v in vars(features).items()}
