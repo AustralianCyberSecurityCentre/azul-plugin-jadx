@@ -15,9 +15,10 @@ from azul_runner import (
     add_settings,
     cmdline_run,
 )
+from defusedxml import ElementTree
 
 from azul_plugin_jadx import jadx
-from azul_plugin_jadx.apk_processor import java_analyser, manifest_parser, source_extractor
+from azul_plugin_jadx.apk_processor import java_analyser, source_extractor
 
 # APKs are zip files; libmagic often identifies them as application/zip rather than
 # application/vnd.android. filter_data_types limits which files reach this point.
@@ -77,45 +78,6 @@ class AzulPluginJadx(BinaryPlugin):
         },
     )
     FEATURES = [
-        # --- Manifest metadata ---
-        Feature("package_name", desc="The Android package name from AndroidManifest.xml.", type=FeatureType.String),
-        Feature("version_code", desc="The versionCode from AndroidManifest.xml.", type=FeatureType.String),
-        Feature("version_name", desc="The versionName from AndroidManifest.xml.", type=FeatureType.String),
-        Feature("min_sdk_version", desc="The minSdkVersion from AndroidManifest.xml.", type=FeatureType.String),
-        Feature("target_sdk_version", desc="The targetSdkVersion from AndroidManifest.xml.", type=FeatureType.String),
-        Feature(
-            "compile_sdk_version", desc="The compileSdkVersion from AndroidManifest.xml.", type=FeatureType.String
-        ),
-        Feature(
-            "permissions",
-            desc="Android permissions declared in AndroidManifest.xml.",
-            type=FeatureType.String,
-        ),
-        Feature(
-            "features_used",
-            desc="Hardware/software features declared via <uses-feature> in AndroidManifest.xml.",
-            type=FeatureType.String,
-        ),
-        Feature(
-            "activities",
-            desc="User-defined Activity class names declared in AndroidManifest.xml.",
-            type=FeatureType.String,
-        ),
-        Feature(
-            "services",
-            desc="User-defined Service class names declared in AndroidManifest.xml.",
-            type=FeatureType.String,
-        ),
-        Feature(
-            "receivers",
-            desc="User-defined BroadcastReceiver class names declared in AndroidManifest.xml.",
-            type=FeatureType.String,
-        ),
-        Feature(
-            "providers",
-            desc="User-defined ContentProvider class names declared in AndroidManifest.xml.",
-            type=FeatureType.String,
-        ),
         # --- Code features ---
         Feature(
             "package_class_methods",
@@ -179,32 +141,8 @@ class AzulPluginJadx(BinaryPlugin):
             manifest_path = _find_manifest(resources_dir)
             if manifest_path:
                 try:
-                    manifest = manifest_parser.parse_manifest(manifest_path)
-                    package_name = manifest.get("package_name", "")
-
-                    for scalar_key in (
-                        "package_name",
-                        "version_code",
-                        "version_name",
-                        "min_sdk_version",
-                        "target_sdk_version",
-                        "compile_sdk_version",
-                    ):
-                        value = manifest.get(scalar_key, "")
-                        if value:
-                            self.add_feature_values(scalar_key, value)
-
-                    for list_key in (
-                        "permissions",
-                        "features_used",
-                        "activities",
-                        "services",
-                        "receivers",
-                        "providers",
-                    ):
-                        values = manifest.get(list_key, [])
-                        if values:
-                            self.add_feature_values(list_key, values)
+                    tree = ElementTree.parse(manifest_path)
+                    package_name = tree.getroot().get("package", "")
                 except Exception:  # noqa: BLE001
                     self.logger.warning("Failed to parse AndroidManifest.xml.")
             else:

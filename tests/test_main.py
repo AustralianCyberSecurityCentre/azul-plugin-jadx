@@ -62,12 +62,6 @@ class TestExecute(test_template.TestPlugin):
                     FV("string"),
                     FV("style"),
                 ],
-                "compile_sdk_version": [
-                    FV("36"),
-                ],
-                "min_sdk_version": [
-                    FV("23"),
-                ],
                 "package_classes": [
                     FV("com.sosauce.cutecalc.R"),
                     FV("com.sosauce.cutecalc.attr"),
@@ -82,27 +76,10 @@ class TestExecute(test_template.TestPlugin):
                     FV("com.sosauce.cutecalc.string"),
                     FV("com.sosauce.cutecalc.style"),
                 ],
-                "package_name": [
-                    FV("com.sosauce.cutecalc"),
-                ],
                 "packages": [
                     FV("com"),
                     FV("com.sosauce"),
                     FV("com.sosauce.cutecalc"),
-                ],
-                "permissions": [
-                    FV("android.permission.MEDIA_CONTENT_CONTROL"),
-                    FV("android.permission.VIBRATE"),
-                    FV("com.sosauce.cutecalc.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"),
-                ],
-                "target_sdk_version": [
-                    FV("36"),
-                ],
-                "version_code": [
-                    FV("50000"),
-                ],
-                "version_name": [
-                    FV("4.0.0"),
                 ],
             },
         )
@@ -130,11 +107,6 @@ class TestExecute(test_template.TestPlugin):
         self.assertReprEqual(
             event.features,
             {
-                "activities": [
-                    FV("net.tlfoxhuman.droidstress.AboutActivity"),
-                    FV("net.tlfoxhuman.droidstress.BlankScreenActivity"),
-                    FV("net.tlfoxhuman.droidstress.MainActivity"),
-                ],
                 "class_methods": [
                     FV("AboutActivity::onCreate"),
                     FV("AboutActivity::setContentView"),
@@ -179,12 +151,6 @@ class TestExecute(test_template.TestPlugin):
                     FV("string"),
                     FV("style"),
                     FV("xml"),
-                ],
-                "compile_sdk_version": [
-                    FV("36"),
-                ],
-                "min_sdk_version": [
-                    FV("16"),
                 ],
                 "package_class_methods": [
                     FV("net.tlfoxhuman.droidstress.AboutActivity::onCreate"),
@@ -247,32 +213,10 @@ class TestExecute(test_template.TestPlugin):
                     FV("net.tlfoxhuman.droidstress::startActivity"),
                     FV("net.tlfoxhuman.droidstress::startService"),
                 ],
-                "package_name": [
-                    FV("net.tlfoxhuman.droidstress"),
-                ],
                 "packages": [
                     FV("net"),
                     FV("net.tlfoxhuman"),
                     FV("net.tlfoxhuman.droidstress"),
-                ],
-                "permissions": [
-                    FV("android.permission.FOREGROUND_SERVICE"),
-                    FV("android.permission.FOREGROUND_SERVICE_SPECIAL_USE"),
-                    FV("android.permission.POST_NOTIFICATIONS"),
-                    FV("android.permission.WAKE_LOCK"),
-                    FV("net.tlfoxhuman.droidstress.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"),
-                ],
-                "services": [
-                    FV("net.tlfoxhuman.droidstress.StressService"),
-                ],
-                "target_sdk_version": [
-                    FV("36"),
-                ],
-                "version_code": [
-                    FV("5"),
-                ],
-                "version_name": [
-                    FV("1.4.0"),
                 ],
             },
         )
