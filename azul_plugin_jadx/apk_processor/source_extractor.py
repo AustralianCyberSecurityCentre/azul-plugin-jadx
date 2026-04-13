@@ -1,35 +1,25 @@
 """Finds user-authored Java source files in a JADX output directory."""
 
 import os
+from xml.etree.ElementTree import ElementTree
 
 _ANDROID_NS = "http://schemas.android.com/apk/res/android"
 _COMPONENT_TAGS = frozenset({"activity", "service", "receiver", "provider"})
 _EXCLUDED_FILENAMES = frozenset({"R.java", "BuildConfig.java"})
 
 
-def get_user_packages(manifest_tree, manifest_package: str) -> list[str]:
-    """Return the source package prefixes that contain user-authored code.
+def get_user_packages(manifest_tree: ElementTree, manifest_package: str) -> list[str]:
+    """Return deduplicated, subpackage-collapsed package prefixes for user-authored code.
 
-    Parses component class names (activity, service, receiver, provider) from
-    the manifest and keeps those whose package shares at least two leading
-    segments with the manifest ``package`` attribute (e.g. both start with
-    ``com.example``).  This excludes third-party libraries regardless of
-    origin without requiring a maintained deny-list.
-
-    Falls back to ``[manifest_package]`` when no matching components are found.
-
-    Args:
-        manifest_tree: A parsed ``ElementTree`` from the AndroidManifest.xml.
-        manifest_package: The app's package name from the manifest ``package``
-            attribute (e.g. ``com.sosauce.cutecalc``).
-
-    Returns:
-        A deduplicated, subpackage-collapsed list of source package prefixes.
+    Reads component class names from the manifest and keeps packages that share
+    at least two leading segments with ``manifest_package``, excluding third-party
+    libraries without a deny-list. Falls back to ``[manifest_package]`` if none match.
     """
     if not manifest_package:
         return []
 
     manifest_segments = manifest_package.split(".")
+    # Require at least 2 matching segments (e.g. "com.example") to exclude third-party libs.
     min_common = min(2, len(manifest_segments))
     name_attr = f"{{{_ANDROID_NS}}}name"
 
@@ -39,7 +29,7 @@ def get_user_packages(manifest_tree, manifest_package: str) -> list[str]:
 
     packages: set[str] = set()
     for child in application:
-        # Strip namespace from tag if present.
+        # Strip namespace prefix (e.g. "{http://...}activity" -> "activity").
         tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
         if tag not in _COMPONENT_TAGS:
             continue
@@ -47,17 +37,18 @@ def get_user_packages(manifest_tree, manifest_package: str) -> list[str]:
         if not raw_name:
             continue
 
-        # Resolve relative names: ".Foo" or "Foo" (no dot) → fully qualified.
+        # Resolve shorthand names to fully-qualified class names.
         if raw_name.startswith("."):
-            fq_name = manifest_package + raw_name
+            fq_name = manifest_package + raw_name  # ".MyActivity" -> "com.example.MyActivity"
         elif "." not in raw_name:
-            fq_name = f"{manifest_package}.{raw_name}"
+            fq_name = f"{manifest_package}.{raw_name}"  # "MyActivity" -> "com.example.MyActivity"
         else:
-            fq_name = raw_name
+            fq_name = raw_name  # already fully qualified
 
         if "." not in fq_name:
             continue
 
+        # Derive the package from the class name and count shared leading segments.
         pkg = fq_name.rsplit(".", 1)[0]
         pkg_segments = pkg.split(".")
         common = sum(1 for a, b in zip(manifest_segments, pkg_segments) if a == b)
@@ -65,6 +56,7 @@ def get_user_packages(manifest_tree, manifest_package: str) -> list[str]:
             packages.add(pkg)
 
     if not packages:
+        # No matching components found; fall back to the manifest package itself.
         return [manifest_package]
 
     return _remove_subpackages(sorted(packages))
@@ -80,24 +72,16 @@ def _remove_subpackages(packages: list[str]) -> list[str]:
 
 
 def get_user_source_files(sources_dir: str, packages: list[str]) -> list[str]:
-    """Return paths to all user-authored .java files under the given packages.
+    """Return deduplicated paths to user-authored .java files under the given packages.
 
-    Walks each package subtree under ``sources_dir`` and collects ``.java``
-    files, excluding auto-generated files (``R.java``, ``BuildConfig.java``)
-    and deduplicating paths when package prefixes overlap.
-
-    Args:
-        sources_dir: Absolute path to the ``sources/`` directory produced by JADX.
-        packages: List of dot-separated package prefixes to walk (e.g.
-            ``["com.sosauce.vanilla"]``).
-
-    Returns:
-        A deduplicated list of absolute paths to ``.java`` files.
+    Walks each package subtree in ``sources_dir``, skipping auto-generated files
+    (``R.java``, ``BuildConfig.java``) and deduplicating when package prefixes overlap.
     """
     seen: set[str] = set()
     java_files: list[str] = []
 
     for package in packages:
+        # Convert dot-separated package name to a filesystem path.
         package_dir = os.path.join(sources_dir, package.replace(".", os.sep))
         if not os.path.isdir(package_dir):
             continue
@@ -106,6 +90,7 @@ def get_user_source_files(sources_dir: str, packages: list[str]) -> list[str]:
                 if not filename.endswith(".java") or filename in _EXCLUDED_FILENAMES:
                     continue
                 abs_path = os.path.join(dirpath, filename)
+                # Guard against duplicates when package prefixes overlap.
                 if abs_path not in seen:
                     seen.add(abs_path)
                     java_files.append(abs_path)

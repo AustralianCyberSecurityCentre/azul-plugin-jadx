@@ -4,8 +4,6 @@ import os
 import shutil
 import subprocess  # nosec B404
 import tempfile
-import zipfile
-
 import magic
 from azul_runner import (
     BinaryPlugin,
@@ -57,26 +55,6 @@ def _run_jadx_decompile(file_path: str, output_dir: str) -> str:
     return output_dir
 
 
-def _prepare_jadx_input(file_path: str, temp_dir: str, mime: str) -> str:
-    """Return the path jadx should receive as input.
-
-    JADX needs a .xapk extension to recognise XAPK bundles. If the input is a zip
-    containing manifest.json (the XAPK bundle descriptor), create a symlink with
-    the correct extension.
-    """
-    if mime != "application/zip":
-        return file_path
-    try:
-        with zipfile.ZipFile(file_path, "r") as zf:  # noqa: S202
-            if "manifest.json" in zf.namelist():
-                xapk_path = os.path.join(temp_dir, "input.xapk")
-                os.symlink(os.path.abspath(file_path), xapk_path)
-                return xapk_path
-    except Exception:  # noqa: BLE001,S110
-        pass  # noqa: S110
-    return file_path
-
-
 def _find_manifest(resources_dir: str) -> str | None:
     """Walk resources_dir to find AndroidManifest.xml, returning the shallowest match so split-APK config manifests don't shadow the primary app manifest."""
     if not os.path.isdir(resources_dir):
@@ -93,9 +71,9 @@ def _find_manifest(resources_dir: str) -> str | None:
 class AzulPluginJadx(BinaryPlugin):
     """Decompiles Android APK/DEX files using JADX."""
 
-    VERSION = "2026.04.01"
+    VERSION = "2026.04.13"
     SETTINGS = add_settings(
-        filter_max_content_size=(int, 100 * 1024 * 1024),
+        filter_max_content_size=(int, 100 * 1024 * 1024), 
         filter_data_types={
             "content": [
                 "android/apk",
@@ -150,11 +128,9 @@ class AzulPluginJadx(BinaryPlugin):
             return State(State.Label.OPT_OUT, message="Not a valid APK/DEX file.")
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Resolve the correct input path for jadx (XAPK needs a .xapk extension).
-            jadx_input = _prepare_jadx_input(file_path, temp_dir, mime)
             # --- Run JADX ---
             try:
-                output_dir = _run_jadx_decompile(jadx_input, temp_dir)
+                output_dir = _run_jadx_decompile(file_path, temp_dir)
             except (RuntimeError, FileNotFoundError) as e:
                 return self.is_malformed(f"JADX failed: {e}")
 
