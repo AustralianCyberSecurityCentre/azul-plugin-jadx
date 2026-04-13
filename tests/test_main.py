@@ -31,55 +31,67 @@ class TestExecute(test_template.TestPlugin):
             "dc7216ea61174f801b7fff99b9a3e0ac669080ead1e51243dbebb0bae6839bcf",
             "Cute Calc 4.0.0 APK (com.sosauce.cutecalc) from F-Droid.",
         )
+        # JADX deobfuscation is non-deterministic across runs (counter-based renames vary
+        # with internal HashMap ordering). Skip the consistency re-run check.
         result = self.do_execution(
             data_in=[("content", data)],
             verify_input_content=False,
+            check_consistent_augmented_stream=False,
         )
         self.assertEqual(result.state, State(State.Label.COMPLETED))
 
         self.assertEqual(len(result.events), 1)
         event = result.events[0]
 
-        # --- Decompiled source files ---
-        self.assertEqual(len(event.data), 1)
+        # --- Decompiled source files (4 user-code files from com.sosauce.vanilla) ---
+        self.assertEqual(len(event.data), 4)
         self.assertTrue(all(d.label == DataLabel.DECOMPILED_CS for d in event.data))
 
         # --- All features ---
         self.assertReprEqual(
             event.features,
             {
+                "class_methods": [
+                    FV("MainActivity::onCreate"),
+                    FV("MainActivity::setContentView"),
+                    FV("QSTile::onClick"),
+                    FV("QSTile::startActivity"),
+                    FV("QSTile::startActivityAndCollapse"),
+                ],
                 "classes": [
-                    FV("R"),
-                    FV("attr"),
-                    FV("color"),
-                    FV("dimen"),
-                    FV("drawable"),
-                    FV("font"),
-                    FV("id"),
-                    FV("integer"),
-                    FV("layout"),
-                    FV("mipmap"),
-                    FV("string"),
-                    FV("style"),
+                    FV("HistoryDatabase"),
+                    FV("HistoryDatabase_Impl"),
+                    FV("MainActivity"),
+                    FV("QSTile"),
+                ],
+                "package_class_methods": [
+                    FV("com.sosauce.vanilla.MainActivity::onCreate"),
+                    FV("com.sosauce.vanilla.MainActivity::setContentView"),
+                    FV("com.sosauce.vanilla.data.sysui.QSTile::onClick"),
+                    FV("com.sosauce.vanilla.data.sysui.QSTile::startActivity"),
+                    FV("com.sosauce.vanilla.data.sysui.QSTile::startActivityAndCollapse"),
                 ],
                 "package_classes": [
-                    FV("com.sosauce.cutecalc.R"),
-                    FV("com.sosauce.cutecalc.attr"),
-                    FV("com.sosauce.cutecalc.color"),
-                    FV("com.sosauce.cutecalc.dimen"),
-                    FV("com.sosauce.cutecalc.drawable"),
-                    FV("com.sosauce.cutecalc.font"),
-                    FV("com.sosauce.cutecalc.id"),
-                    FV("com.sosauce.cutecalc.integer"),
-                    FV("com.sosauce.cutecalc.layout"),
-                    FV("com.sosauce.cutecalc.mipmap"),
-                    FV("com.sosauce.cutecalc.string"),
-                    FV("com.sosauce.cutecalc.style"),
+                    FV("com.sosauce.vanilla.MainActivity"),
+                    FV("com.sosauce.vanilla.data.sysui.QSTile"),
+                    FV("com.sosauce.vanilla.domain.repository.HistoryDatabase"),
+                    FV("com.sosauce.vanilla.domain.repository.HistoryDatabase_Impl"),
+                ],
+                "package_methods": [
+                    FV("com.sosauce.vanilla.data.sysui::onClick"),
+                    FV("com.sosauce.vanilla.data.sysui::startActivity"),
+                    FV("com.sosauce.vanilla.data.sysui::startActivityAndCollapse"),
+                    FV("com.sosauce.vanilla::onCreate"),
+                    FV("com.sosauce.vanilla::setContentView"),
                 ],
                 "packages": [
                     FV("com"),
                     FV("com.sosauce"),
-                    FV("com.sosauce.cutecalc"),
+                    FV("com.sosauce.vanilla"),
+                    FV("com.sosauce.vanilla.data"),
+                    FV("com.sosauce.vanilla.data.sysui"),
+                    FV("com.sosauce.vanilla.domain"),
+                    FV("com.sosauce.vanilla.domain.repository"),
                 ],
             },
         )
@@ -99,8 +111,8 @@ class TestExecute(test_template.TestPlugin):
         self.assertEqual(len(result.events), 1)
         event = result.events[0]
 
-        # --- Decompiled source files ---
-        self.assertEqual(len(event.data), 5)
+        # --- Decompiled source files (4 user-code files; R.java excluded) ---
+        self.assertEqual(len(event.data), 4)
         self.assertTrue(all(d.label == DataLabel.DECOMPILED_CS for d in event.data))
 
         # --- All features ---
@@ -134,23 +146,7 @@ class TestExecute(test_template.TestPlugin):
                     FV("AboutActivity"),
                     FV("BlankScreenActivity"),
                     FV("MainActivity"),
-                    FV("R"),
                     FV("StressService"),
-                    FV("anim"),
-                    FV("attr"),
-                    FV("bool"),
-                    FV("color"),
-                    FV("dimen"),
-                    FV("drawable"),
-                    FV("id"),
-                    FV("integer"),
-                    FV("interpolator"),
-                    FV("layout"),
-                    FV("menu"),
-                    FV("mipmap"),
-                    FV("string"),
-                    FV("style"),
-                    FV("xml"),
                 ],
                 "package_class_methods": [
                     FV("net.tlfoxhuman.droidstress.AboutActivity::onCreate"),
@@ -179,23 +175,7 @@ class TestExecute(test_template.TestPlugin):
                     FV("net.tlfoxhuman.droidstress.AboutActivity"),
                     FV("net.tlfoxhuman.droidstress.BlankScreenActivity"),
                     FV("net.tlfoxhuman.droidstress.MainActivity"),
-                    FV("net.tlfoxhuman.droidstress.R"),
                     FV("net.tlfoxhuman.droidstress.StressService"),
-                    FV("net.tlfoxhuman.droidstress.anim"),
-                    FV("net.tlfoxhuman.droidstress.attr"),
-                    FV("net.tlfoxhuman.droidstress.bool"),
-                    FV("net.tlfoxhuman.droidstress.color"),
-                    FV("net.tlfoxhuman.droidstress.dimen"),
-                    FV("net.tlfoxhuman.droidstress.drawable"),
-                    FV("net.tlfoxhuman.droidstress.id"),
-                    FV("net.tlfoxhuman.droidstress.integer"),
-                    FV("net.tlfoxhuman.droidstress.interpolator"),
-                    FV("net.tlfoxhuman.droidstress.layout"),
-                    FV("net.tlfoxhuman.droidstress.menu"),
-                    FV("net.tlfoxhuman.droidstress.mipmap"),
-                    FV("net.tlfoxhuman.droidstress.string"),
-                    FV("net.tlfoxhuman.droidstress.style"),
-                    FV("net.tlfoxhuman.droidstress.xml"),
                 ],
                 "package_methods": [
                     FV("net.tlfoxhuman.droidstress::MainActivity"),

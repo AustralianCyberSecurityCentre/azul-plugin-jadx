@@ -162,12 +162,13 @@ class AzulPluginJadx(BinaryPlugin):
             sources_dir = os.path.join(output_dir, "sources")
 
             # --- Parse AndroidManifest.xml ---
-            package_name = ""
+            user_packages: list[str] = []
             manifest_path = _find_manifest(resources_dir)
             if manifest_path:
                 try:
                     tree = ElementTree.parse(manifest_path)
-                    package_name = tree.getroot().get("package", "")
+                    manifest_package = tree.getroot().get("package", "")
+                    user_packages = source_extractor.get_user_packages(tree, manifest_package)
                 except Exception:  # noqa: BLE001
                     self.logger.warning("Failed to parse AndroidManifest.xml.")
             else:
@@ -176,8 +177,8 @@ class AzulPluginJadx(BinaryPlugin):
             # TODO: Should we add AndroidManifest.xml as a data file here?
 
             # --- Add decompiled source files ---
-            if package_name and os.path.isdir(sources_dir):
-                java_files = source_extractor.get_user_source_files(sources_dir, package_name)
+            if user_packages and os.path.isdir(sources_dir):
+                java_files = source_extractor.get_user_source_files(sources_dir, user_packages)
                 for java_file in java_files:
                     try:
                         with open(java_file, "rb") as f:
@@ -196,7 +197,7 @@ class AzulPluginJadx(BinaryPlugin):
                     except Exception:  # noqa: BLE001
                         self.logger.warning("Failed to analyse Java source files.")
             else:
-                self.logger.warning("No package name or sources directory -- skipping source analysis.")
+                self.logger.warning("No user packages identified from manifest -- skipping source analysis.")
 
 
 def main():

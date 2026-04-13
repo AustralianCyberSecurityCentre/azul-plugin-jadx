@@ -22,8 +22,8 @@ _RE_METHOD_DECL = re.compile(
 # Package declaration at the top of a .java file.
 _RE_PACKAGE = re.compile(r"^\s*package\s+([\w.]+)\s*;")
 
-# JADX-generated obfuscated method names (e.g. m9869a, mo9639b) -- not useful as features.
-_RE_JADX_METHOD = re.compile(r"^mo?\d{4,}[a-z]+$")
+# JADX-generated obfuscated method names (e.g. m9869a, mo9639b, mo858k) -- not useful as features.
+_RE_JADX_METHOD = re.compile(r"^mo?\d{3,}[a-z]+$")
 
 # Maximum number of values emitted per feature key to prevent unbounded feature lists.
 _MAX_FEATURES_PER_KEY = 5000
