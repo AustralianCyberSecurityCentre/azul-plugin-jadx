@@ -19,9 +19,11 @@ from defusedxml import ElementTree
 
 from azul_plugin_jadx.apk_processor import java_analyser, source_extractor
 
-# APKs are zip files; libmagic often identifies them as application/zip rather than
-# application/vnd.android. filter_data_types limits which files reach this point.
-_APK_MAGIC_PREFIXES = ("application/vnd.android", "application/zip")
+# Accepted MIME types for the libmagic pre-check.
+# APKs are zip files so libmagic often reports application/zip instead of
+# application/vnd.android. JAR files (application/java-archive) are valid
+# JADX inputs when they contain Android bytecode.
+_ACCEPTED_MIME_PREFIXES = ("application/vnd.android", "application/zip", "application/java-archive")
 _JADX_TIMEOUT = 300
 _DEX_MIME = "application/x-dex"
 
@@ -124,7 +126,7 @@ class AzulPluginJadx(BinaryPlugin):
         except Exception:  # noqa: BLE001
             return State(State.Label.OPT_OUT, message="Could not determine file type.")
 
-        if not any(mime.startswith(p) for p in _APK_MAGIC_PREFIXES) and mime != _DEX_MIME:
+        if not any(mime.startswith(p) for p in _ACCEPTED_MIME_PREFIXES) and mime != _DEX_MIME:
             return State(State.Label.OPT_OUT, message="Not a valid APK/DEX file.")
 
         with tempfile.TemporaryDirectory() as temp_dir:
