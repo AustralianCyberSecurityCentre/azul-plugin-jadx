@@ -77,7 +77,9 @@ dev = [
     "azul-runner[test-utils]>=9.0.38",
     "cart>=1.2.3",
     "pytest>=9.0.2",
+    "ruff>=0.15.8",
     "tox>=4.34.1",
+    "ty>=0.0.27",
 ]
 
 [tool.ruff]
