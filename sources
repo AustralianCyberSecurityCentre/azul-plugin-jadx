@@ -1,0 +1,17 @@
+hatchling = false
+hatch-vcs = false
+packaging = false
+pathspec = false
+pluggy = false
+setuptools-scm = false
+setuptools = false
+editables = false
+trove-classifiers = false
+defusedxml = false
+python-magic = false
+cart = false
+pytest = false
+ruff = false
+tox = false
+ty = false
+cachetools = false
