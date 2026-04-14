@@ -51,7 +51,7 @@ def get_user_packages(manifest_tree: ElementTree, manifest_package: str) -> list
         # Derive the package from the class name and count shared leading segments.
         pkg = fq_name.rsplit(".", 1)[0]
         pkg_segments = pkg.split(".")
-        common = sum(1 for a, b in zip(manifest_segments, pkg_segments) if a == b)
+        common = sum(1 for a, b in zip(manifest_segments, pkg_segments) if a == b)  # noqa: B905
         if common >= min_common:
             packages.add(pkg)
 

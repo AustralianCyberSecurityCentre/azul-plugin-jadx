@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess  # nosec B404
 import tempfile
+
 import magic
 from azul_runner import (
     BinaryPlugin,
@@ -75,7 +76,7 @@ class AzulPluginJadx(BinaryPlugin):
 
     VERSION = "2026.04.13"
     SETTINGS = add_settings(
-        filter_max_content_size=(int, 100 * 1024 * 1024), 
+        filter_max_content_size=(int, 100 * 1024 * 1024),
         filter_data_types={
             "content": [
                 "android/apk",
