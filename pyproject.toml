@@ -25,6 +25,7 @@ classifiers=[
 ]
 dependencies = [
     "azul-runner>=9.0.38",
+    "azul-bedrock",
     "defusedxml>=0.7.1",
     "python-magic>=0.4.27",
 ]
@@ -36,9 +37,28 @@ azul-plugin-jadx = "azul_plugin_jadx.main:main"
 Documentation = "https://australiancybersecuritycentre.github.io/azul/"
 Repository = "https://github.com/AustralianCyberSecurityCentre/azul-plugin-jadx"
 
+[tool.uv]
+package = true
+exclude-newer = "1 week"
+exclude-newer-package = { azul-bedrock = false, azul-runner = false, azul-security=false, azul-metastore = false, azul-nsrl-lookup-serve=false, azul-nsrl-lookup-server=false, azul-plugin-retrohunt = false }
+
+[tool.uv.sources]
+azul-bedrock = { index="cache"}
+azul-runner = { index="cache" }
+azul-metastore = { index="cache"}
+azul-security = { index="cache"}
+azul-nsrl-lookup-server = { index="cache"}
+azul-plugin-retrohunt = { index="cache" }
+
 [[tool.uv.index]]
+name = "pypi"
 url = "https://pypi.org/simple"
 default = true
+
+[[tool.uv.index]]
+name = "cache"
+url = "https://devpi.acsc.internal/azul/stable/"
+explicit = true
 
 [tool.hatch.version]
 source = "vcs"

@@ -11,38 +11,43 @@ ARG PIP_CERT
 ARG PIP_CLIENT_CERT
 ARG PIP_TRUSTED_HOST
 ARG PIP_INDEX_URL
-ARG UV_DEFAULT_INDEX
-ARG UV_INSECURE_HOST
-ARG GIT_BRANCH_NAME
 ARG PIP_EXTRA_INDEX_URL
+ARG GIT_BRANCH_NAME
+# expected to be public registry (e.g pypi.org)
+ARG UV_DEFAULT_INDEX
+# expected to be private registry
+ARG UV_INDEX_URL
+ARG UV_INSECURE_HOST
+# Ensure uv installs to the correct directory
+ENV UV_PROJECT_ENVIRONMENT=/usr/local
 
 COPY debian.txt /tmp/src/
-
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
     $(grep -vE "^\s*(#|$)" /tmp/src/debian.txt | tr "\n" " ") && \
     rm -rf /tmp/src/debian.txt /var/lib/apt/lists/*
+
 # copy all files not in .dockerignore
 COPY ./ /tmp/src
 RUN pip install uv
+
+# build and install package
+WORKDIR /tmp/src
+# Install all dependencies
+RUN uv sync --frozen --no-editable
+# Install package with version attached. (hatchling and hatch-vcs installed after sync to avoid being uninstalled)
 RUN uv pip install --system hatchling hatch-vcs
-# build package
-RUN cd /tmp/src && uv build . --out-dir /tmp/
-# install package
-RUN uv pip install --system \
-    --find-links /tmp/ \
-    # Version specified to ensure the package that was just built is installed instead of a newer version of the package.
-    azul-plugin-jadx==$(cd /tmp/src && hatchling version)
+RUN uv build . --out-dir /tmp/
+RUN uv pip uninstall --system azul-plugin-jadx
+RUN uv pip install --system --no-deps --find-links /tmp/ azul-plugin-jadx==$(hatchling version)
 
-# If on dev branch, install dev versions of azul packages (locate packages)
-# Note pip install --pre --upgrade --no-deps is not valid because it doesn't install the requirements of dev azul packages which are needed.
+# Upgrade to dev azul dependencies or upgrade non-dev azul dependencies depending on branch.
 RUN if [ "$GIT_BRANCH_NAME" = "refs/heads/dev" ] ; then \
-    pip freeze | grep 'azul-.*==' | cut -d "=" -f 1 | xargs -I {} uv pip install --system --find-links /tmp/ --upgrade '{}>=0.0.1.dev' ;fi
-# re-run install sdist to get correct version of current package after dev install.
-RUN if [ "$GIT_BRANCH_NAME" = "refs/heads/dev" ] ; then \
-    uv pip install --system --find-links /tmp/ azul-plugin-jadx==$(cd /tmp/src && hatchling version);fi
-
+    uv pip freeze | grep 'azul-.*==' | grep -v '^azul-plugin-jadx' | cut -d "=" -f 1 | xargs -I {} uv pip install --extra-index-url=$UV_INDEX_URL --system --upgrade --no-deps --prerelease allow '{}>=0.0.0-dev'; \
+    else \
+    uv pip freeze | grep 'azul-.*==' | grep -v '^azul-plugin-jadx' | cut -d "=" -f 1 | xargs -I {} uv pip install --extra-index-url=$UV_INDEX_URL --system --upgrade --no-deps '{}>=0.0.0'; \
+    fi
 
 FROM $REGISTRY/$BASE_IMAGE:$BASE_TAG AS base
 ENV DEBIAN_FRONTEND=noninteractive
@@ -72,6 +77,7 @@ ARG PIP_CLIENT_CERT
 ARG PIP_TRUSTED_HOST
 ARG PIP_INDEX_URL
 ARG UV_DEFAULT_INDEX
+ARG UV_INDEX_URL
 ARG UV_INSECURE_HOST
 ARG PIP_EXTRA_INDEX_URL
 ARG UID=21000
