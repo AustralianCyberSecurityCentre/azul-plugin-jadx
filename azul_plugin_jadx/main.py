@@ -29,35 +29,6 @@ _JADX_TIMEOUT = 300
 _DEX_MIME = "application/x-dex"
 
 
-def _run_jadx_decompile(file_path: str, output_dir: str) -> str:
-    """Decompile an APK/DEX file with JADX (deobfuscation always enabled) and return output_dir."""
-    jadx_bin = shutil.which("jadx")
-    if not jadx_bin:
-        raise FileNotFoundError("JADX binary not found on PATH.")
-
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Could not find the file to run JADX on: '{file_path}'")
-
-    try:
-        result = subprocess.run(  # noqa: S603
-            [jadx_bin, "--output-dir", output_dir, "--deobf", file_path],
-            capture_output=True,
-            text=True,
-            timeout=_JADX_TIMEOUT,
-        )
-    except subprocess.TimeoutExpired as e:
-        raise RuntimeError(f"JADX timed out after {_JADX_TIMEOUT} seconds.") from e
-
-    if result.returncode != 0 and result.returncode not in (1, 3):
-        raise RuntimeError(result.stderr)
-
-    sources_dir = os.path.join(output_dir, "sources")
-    if not os.path.isdir(sources_dir):
-        raise RuntimeError(f"JADX did not produce a sources directory at: {sources_dir}")
-
-    return output_dir
-
-
 def _find_manifest(resources_dir: str) -> str | None:
     """Walk resources_dir to find AndroidManifest.xml, returning the shallowest match so split-APK config manifests don't shadow the primary app manifest."""
     if not os.path.isdir(resources_dir):
@@ -117,6 +88,36 @@ class AzulPluginJadx(BinaryPlugin):
         Feature("interfaces", desc="All interface type names found in user-package source.", type=FeatureType.String),
     ]
 
+    def _run_jadx_decompile(self, file_path: str, output_dir: str) -> str:
+        """Decompile an APK/DEX file with JADX (deobfuscation always enabled) and return output_dir."""
+        jadx_bin = shutil.which("jadx")
+        if not jadx_bin:
+            raise FileNotFoundError("JADX binary not found on PATH.")
+
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Could not find the file to run JADX on: '{file_path}'")
+
+        try:
+            result = subprocess.run(  # noqa: S603
+                [jadx_bin, "--output-dir", output_dir, "--deobf", file_path],
+                capture_output=True,
+                text=True,
+                timeout=_JADX_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError(f"JADX timed out after {_JADX_TIMEOUT} seconds.") from e
+
+        if result.returncode != 0 and result.returncode not in (1, 3):
+            self.logger.error(f"JADX failed with return code {result.returncode}. Stderr: {result.stderr}")
+            raise RuntimeError(result.stderr)
+
+        sources_dir = os.path.join(output_dir, "sources")
+        if not os.path.isdir(sources_dir):
+            self.logger.error(f"JADX did not produce a sources directory at: {sources_dir}")
+            raise RuntimeError(f"JADX did not produce a sources directory at: {sources_dir}")
+
+        return output_dir
+
     def execute(self, job: Job):
         """Run the plugin."""
         file_path = job.get_data().get_filepath()
@@ -133,7 +134,7 @@ class AzulPluginJadx(BinaryPlugin):
         with tempfile.TemporaryDirectory() as temp_dir:
             # --- Run JADX ---
             try:
-                output_dir = _run_jadx_decompile(file_path, temp_dir)
+                output_dir = self._run_jadx_decompile(file_path, temp_dir)
             except (RuntimeError, FileNotFoundError) as e:
                 return self.is_malformed(f"JADX failed: {e}")
 
