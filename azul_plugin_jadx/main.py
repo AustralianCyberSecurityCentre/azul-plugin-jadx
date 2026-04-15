@@ -45,7 +45,7 @@ def _find_manifest(resources_dir: str) -> str | None:
 class AzulPluginJadx(BinaryPlugin):
     """Decompiles Android APK/DEX files using JADX."""
 
-    VERSION = "2026.04.15"
+    VERSION = "2026.04.16"
     SETTINGS = add_settings(
         filter_max_content_size=(int, 100 * 1024 * 1024),
         filter_data_types={
