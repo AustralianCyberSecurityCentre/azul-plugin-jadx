@@ -274,5 +274,3 @@ tags
 # End of https://www.toptal.com/developers/gitignore/api/python,vim,visualstudiocode,intellij+all
 
 .ruff_cache
-# FUTURE UV IS USEFUL
-uv.lock
