@@ -103,6 +103,10 @@ class AzulPluginJadx(BinaryPlugin):
                 capture_output=True,
                 text=True,
                 timeout=_JADX_TIMEOUT,
+                env={
+                    "HOME": tempfile.gettempdir(),
+                    **os.environ,
+                },  # Set HOME to temp to avoid read-only filesystem issues
             )
         except subprocess.TimeoutExpired as e:
             raise RuntimeError(f"JADX timed out after {_JADX_TIMEOUT} seconds.") from e
