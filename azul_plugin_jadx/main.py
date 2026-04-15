@@ -161,7 +161,7 @@ class AzulPluginJadx(BinaryPlugin):
                 for java_file in java_files:
                     try:
                         with open(java_file, "rb") as f:
-                            self.add_data_file(DataLabel.DECOMPILED_CS, {}, f)
+                            self.add_data_file(DataLabel.DECOMPILED_JAVA, {}, f)
                     except OSError:
                         self.logger.warning(f"Could not read source file: {java_file}")
 
