@@ -105,6 +105,7 @@ class AzulPluginJadx(BinaryPlugin):
                 timeout=_JADX_TIMEOUT,
                 env={
                     "JADX_CACHE_DIR": tempfile.gettempdir(),
+                    "JADX_CONFIG_DIR": tempfile.gettempdir(),
                     **os.environ,
                 },  # Set HOME to temp to avoid read-only filesystem issues (does not work)
             )
