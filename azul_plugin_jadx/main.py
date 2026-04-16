@@ -173,12 +173,20 @@ class AzulPluginJadx(BinaryPlugin):
             # --- Add decompiled source files ---
             if user_packages and os.path.isdir(sources_dir):
                 java_files = source_extractor.get_user_source_files(sources_dir, user_packages)
-                for java_file in java_files:
-                    try:
-                        with open(java_file, "rb") as f:
-                            self.add_data_file(DataLabel.DECOMPILED_JAVA, {}, f)
-                    except OSError:
-                        self.logger.warning(f"Could not read source file: {java_file}")
+                with tempfile.NamedTemporaryFile(mode="w", delete=False) as java_src_file:
+                    src_name = java_src_file.name
+                    for java_file in java_files:
+                        try:
+                            with open(java_file, "rb") as f:
+                                java_src_file.write(f"\n// Source file: {java_file.removeprefix(sources_dir)}\n")
+                                java_src_file.write(f.read().decode(errors="replace"))
+                        except OSError:
+                            self.logger.warning(f"Could not read source file: {java_file}")
+
+                with open(src_name, "rb") as f:
+                    self.add_data_file(DataLabel.DECOMPILED_JAVA, {}, f)
+
+                os.remove(src_name)
 
                 # --- Extract code features ---
                 if java_files:
