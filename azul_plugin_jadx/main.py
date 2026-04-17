@@ -119,15 +119,6 @@ class AzulPluginJadx(BinaryPlugin):
         sources_dir = os.path.join(output_dir, "sources")
         if not os.path.isdir(sources_dir):
             self.logger.error(f"JADX did not produce a sources directory at: {sources_dir}")
-            self.logger.error(f"JADX stdout: {result.stdout}")
-            self.logger.error(f"JADX stderr: {result.stderr}")
-            self.logger.error(f"Contents of output directory: {os.listdir(output_dir)}")
-            ls_output = subprocess.run(  # noqa: S603
-                ["/usr/bin/ls", "-laR", "/tmp"],  # noqa: S108
-                capture_output=True,
-                text=True,
-            )
-            self.logger.error(f"Recursive directory listing:\n{ls_output.stdout}")
             raise RuntimeError(f"JADX did not produce a sources directory at: {sources_dir}")
 
         return output_dir
@@ -184,6 +175,9 @@ class AzulPluginJadx(BinaryPlugin):
                             self.logger.warning(f"Could not read source file: {java_file}")
 
                 with open(src_name, "rb") as f:
+                    self.logger.info(
+                        f"Adding decompiled Java source file with {len(java_files)} user-code files combined."
+                    )
                     self.add_data_file(DataLabel.DECOMPILED_JAVA, {}, f)
 
                 os.remove(src_name)
