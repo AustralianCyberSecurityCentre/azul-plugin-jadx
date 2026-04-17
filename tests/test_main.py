@@ -43,8 +43,8 @@ class TestExecute(test_template.TestPlugin):
         self.assertEqual(len(result.events), 1)
         event = result.events[0]
 
-        # --- Decompiled source files (4 user-code files from com.sosauce.vanilla) ---
-        self.assertEqual(len(event.data), 4)
+        # --- Decompiled source file (combines 4 files into a single upload) ---
+        self.assertEqual(len(event.data), 1)
         self.assertTrue(all(d.label == DataLabel.DECOMPILED_JAVA for d in event.data))
 
         # --- All features ---
@@ -111,8 +111,8 @@ class TestExecute(test_template.TestPlugin):
         self.assertEqual(len(result.events), 1)
         event = result.events[0]
 
-        # --- Decompiled source files (4 user-code files; R.java excluded) ---
-        self.assertEqual(len(event.data), 4)
+        # --- Decompiled source file (combines 4 files into a single upload) ---
+        self.assertEqual(len(event.data), 1)
         self.assertTrue(all(d.label == DataLabel.DECOMPILED_JAVA for d in event.data))
 
         # --- All features ---
