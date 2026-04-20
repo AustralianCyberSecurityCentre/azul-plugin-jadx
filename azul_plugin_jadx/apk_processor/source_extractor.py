@@ -5,7 +5,7 @@ from xml.etree.ElementTree import ElementTree
 
 _ANDROID_NS = "http://schemas.android.com/apk/res/android"
 _COMPONENT_TAGS = frozenset({"activity", "service", "receiver", "provider"})
-_EXCLUDED_FILENAMES = frozenset({"R.java", "BuildConfig.java"})
+_EXCLUDED_FILENAMES = frozenset({"R.java"})
 
 
 def get_user_packages(manifest_tree: ElementTree, manifest_package: str) -> list[str]:
@@ -95,4 +95,4 @@ def get_user_source_files(sources_dir: str, packages: list[str]) -> list[str]:
                     seen.add(abs_path)
                     java_files.append(abs_path)
 
-    return java_files
+    return sorted(java_files)

@@ -46,7 +46,7 @@ def _find_manifest(resources_dir: str) -> str | None:
 class AzulPluginJadx(BinaryPlugin):
     """Decompiles Android APK/DEX files using JADX."""
 
-    VERSION = "2026.04.20"
+    VERSION = "2026.04.21"
     SETTINGS = add_settings(
         filter_max_content_size=(int, 100 * 1024 * 1024),
         filter_data_types={
@@ -170,8 +170,13 @@ class AzulPluginJadx(BinaryPlugin):
                     for pkg in user_packages:
                         java_src_file.write(f"\n// Package: {pkg}\n")
                         java_src_file.write(
-                            f"{pygentree.DirectoryTreeGenerator(os.path.join(sources_dir, pkg.replace('.', os.sep))).get_tree()}\n\n"
+                            f"{pygentree.DirectoryTreeGenerator(os.path.join(sources_dir, pkg.replace('.', os.sep)), sort_order='ascending').get_tree()}\n\n"
                         )
+
+                    java_src_file.write(
+                        f"\n// NOTE: {source_extractor._EXCLUDED_FILENAMES} files and package levels with no user code are excluded from output.\n"
+                    )
+
                     for java_file in java_files:
                         try:
                             with open(java_file, "rb") as f:
