@@ -25,7 +25,7 @@ classifiers=[
 ]
 dependencies = [
     "azul-runner>=9.0.38",
-    "azul-bedrock",
+    "azul-bedrock>=11.0.36",
     "defusedxml>=0.7.1",
     "python-magic>=0.4.27",
 ]
