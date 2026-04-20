@@ -167,15 +167,15 @@ class AzulPluginJadx(BinaryPlugin):
                 java_files = source_extractor.get_user_source_files(sources_dir, user_packages)
                 with tempfile.NamedTemporaryFile(mode="w", delete=False) as java_src_file:
                     src_name = java_src_file.name
+                    java_src_file.write(
+                        f"\n// NOTE: {source_extractor._EXCLUDED_FILENAMES} files and package levels with no user code are excluded from output.\n"
+                    )
+
                     for pkg in user_packages:
                         java_src_file.write(f"\n// Package: {pkg}\n")
                         java_src_file.write(
                             f"{pygentree.DirectoryTreeGenerator(os.path.join(sources_dir, pkg.replace('.', os.sep)), sort_order='ascending').get_tree()}\n\n"
                         )
-
-                    java_src_file.write(
-                        f"\n// NOTE: {source_extractor._EXCLUDED_FILENAMES} files and package levels with no user code are excluded from output.\n"
-                    )
 
                     for java_file in java_files:
                         try:

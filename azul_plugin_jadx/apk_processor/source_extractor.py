@@ -5,7 +5,7 @@ from xml.etree.ElementTree import ElementTree
 
 _ANDROID_NS = "http://schemas.android.com/apk/res/android"
 _COMPONENT_TAGS = ["activity", "service", "receiver", "provider"]
-_EXCLUDED_FILENAMES = ["R.java"]
+_EXCLUDED_FILENAMES = ["R.java", "BuildConfig.java"]
 
 
 def get_user_packages(manifest_tree: ElementTree, manifest_package: str) -> list[str]:
@@ -71,11 +71,23 @@ def _remove_subpackages(packages: list[str]) -> list[str]:
     return result
 
 
+def _find_main_activity_dir(sources_dir: str) -> str | None:
+    """Search for MainActivity.java in sources_dir and return its parent directory, or None if not found."""
+    if not os.path.isdir(sources_dir):
+        return None
+    for dirpath, _, filenames in os.walk(sources_dir):
+        if "MainActivity.java" in filenames:
+            return dirpath
+    return None
+
+
 def get_user_source_files(sources_dir: str, packages: list[str]) -> list[str]:
     """Return deduplicated paths to user-authored .java files under the given packages.
 
     Walks each package subtree in ``sources_dir``, skipping auto-generated files
     (``R.java``, ``BuildConfig.java``) and deduplicating when package prefixes overlap.
+    Additionally includes all .java files from the same directory as MainActivity.java
+    to ensure no user code is missed.
     """
     seen: set[str] = set()
     java_files: list[str] = []
@@ -91,6 +103,16 @@ def get_user_source_files(sources_dir: str, packages: list[str]) -> list[str]:
                     continue
                 abs_path = os.path.join(dirpath, filename)
                 # Guard against duplicates when package prefixes overlap.
+                if abs_path not in seen:
+                    seen.add(abs_path)
+                    java_files.append(abs_path)
+
+    # Additionally include all .java files from the same directory as MainActivity.java
+    main_activity_dir = _find_main_activity_dir(sources_dir)
+    if main_activity_dir:
+        for filename in os.listdir(main_activity_dir):
+            if filename.endswith(".java") and filename not in _EXCLUDED_FILENAMES:
+                abs_path = os.path.join(main_activity_dir, filename)
                 if abs_path not in seen:
                     seen.add(abs_path)
                     java_files.append(abs_path)
