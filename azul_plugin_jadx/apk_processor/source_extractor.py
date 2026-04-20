@@ -4,8 +4,8 @@ import os
 from xml.etree.ElementTree import ElementTree
 
 _ANDROID_NS = "http://schemas.android.com/apk/res/android"
-_COMPONENT_TAGS = frozenset({"activity", "service", "receiver", "provider"})
-_EXCLUDED_FILENAMES = frozenset({"R.java"})
+_COMPONENT_TAGS = ["activity", "service", "receiver", "provider"]
+_EXCLUDED_FILENAMES = ["R.java"]
 
 
 def get_user_packages(manifest_tree: ElementTree, manifest_package: str) -> list[str]:
