@@ -28,6 +28,7 @@ dependencies = [
     "azul-bedrock>=11.0.36",
     "defusedxml>=0.7.1",
     "python-magic>=0.4.27",
+    "pygentree>=1.0.4",
 ]
 
 [project.scripts]

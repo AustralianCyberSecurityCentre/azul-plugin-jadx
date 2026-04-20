@@ -6,6 +6,7 @@ import subprocess  # nosec B404
 import tempfile
 
 import magic
+import pygentree
 from azul_runner import (
     BinaryPlugin,
     DataLabel,
@@ -166,6 +167,11 @@ class AzulPluginJadx(BinaryPlugin):
                 java_files = source_extractor.get_user_source_files(sources_dir, user_packages)
                 with tempfile.NamedTemporaryFile(mode="w", delete=False) as java_src_file:
                     src_name = java_src_file.name
+                    for pkg in user_packages:
+                        java_src_file.write(f"\n// Package: {pkg}\n")
+                        java_src_file.write(
+                            f"{pygentree.DirectoryTreeGenerator().generate_tree(os.path.join(sources_dir, pkg.replace('.', os.sep)))}\n\n"
+                        )
                     for java_file in java_files:
                         try:
                             with open(java_file, "rb") as f:
