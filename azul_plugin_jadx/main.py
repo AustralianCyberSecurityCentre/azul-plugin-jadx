@@ -170,7 +170,7 @@ class AzulPluginJadx(BinaryPlugin):
                     for pkg in user_packages:
                         java_src_file.write(f"\n// Package: {pkg}\n")
                         java_src_file.write(
-                            f"{pygentree.DirectoryTreeGenerator(os.path.join(sources_dir, pkg.replace('.', os.sep))).generate_tree()}\n\n"
+                            f"{pygentree.DirectoryTreeGenerator(os.path.join(sources_dir, pkg.replace('.', os.sep))).get_tree()}\n\n"
                         )
                     for java_file in java_files:
                         try:
