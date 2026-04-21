@@ -137,7 +137,7 @@ class AzulPluginJadx(BinaryPlugin):
         if not any(mime.startswith(p) for p in _ACCEPTED_MIME_PREFIXES) and mime != _DEX_MIME:
             return State(State.Label.OPT_OUT, message="Not a valid APK/DEX file.")
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory(delete=False) as temp_dir:
             # --- Run JADX ---
             try:
                 output_dir = self._run_jadx_decompile(file_path, temp_dir)
@@ -148,13 +148,13 @@ class AzulPluginJadx(BinaryPlugin):
             sources_dir = os.path.join(output_dir, "sources")
 
             # --- Parse AndroidManifest.xml ---
-            user_packages: list[str] = []
+            app_package: str = ""
             manifest_path = _find_manifest(resources_dir)
             if manifest_path:
                 try:
                     tree = ElementTree.parse(manifest_path)
-                    manifest_package = tree.getroot().get("package", "")
-                    user_packages = source_extractor.get_user_packages(tree, manifest_package)
+                    app_package = tree.getroot().get("package", "")
+                    print(app_package)
                 except Exception:  # noqa: BLE001
                     self.logger.warning("Failed to parse AndroidManifest.xml.")
             else:
@@ -163,19 +163,18 @@ class AzulPluginJadx(BinaryPlugin):
             # TODO: Should we add AndroidManifest.xml as a data file here?
 
             # --- Add decompiled source files ---
-            if user_packages and os.path.isdir(sources_dir):
-                java_files = source_extractor.get_user_source_files(sources_dir, user_packages)
+            if app_package and os.path.isdir(sources_dir):
+                java_files = source_extractor.get_user_source_files(sources_dir, [app_package])
                 with tempfile.NamedTemporaryFile(mode="w", delete=False) as java_src_file:
                     src_name = java_src_file.name
-                    java_src_file.write(
-                        f"\n// NOTE: {source_extractor._EXCLUDED_FILENAMES} files and package levels with no user code are excluded from output.\n"
+                    java_src_file.write( 
+                        f"\n// NOTE: {source_extractor._EXCLUDED_FILENAMES} files and third-party code are excluded from output.\n"
                     )
 
-                    for pkg in user_packages:
-                        java_src_file.write(f"\n// Package: {pkg}\n")
-                        java_src_file.write(
-                            f"{pygentree.DirectoryTreeGenerator(os.path.join(sources_dir, pkg.replace('.', os.sep)), sort_order='ascending').get_tree()}\n\n"
-                        )
+                    java_src_file.write(f"\n// Application Package: {app_package}\n")
+                    java_src_file.write(
+                        f"{pygentree.DirectoryTreeGenerator(os.path.join(sources_dir, app_package.replace('.', os.sep)), sort_order='ascending').get_tree()}\n\n"
+                    )
 
                     for java_file in java_files:
                         try:
@@ -190,6 +189,8 @@ class AzulPluginJadx(BinaryPlugin):
                         f"Adding decompiled Java source file with {len(java_files)} user-code files combined."
                     )
                     self.add_data_file(DataLabel.DECOMPILED_JAVA, {}, f)
+                    with open("test_output.log", "wb") as tf:
+                        tf.write(f.read())
 
                 os.remove(src_name)
 
@@ -204,7 +205,7 @@ class AzulPluginJadx(BinaryPlugin):
                     except Exception:  # noqa: BLE001
                         self.logger.warning("Failed to analyse Java source files.")
             else:
-                self.logger.warning("No user packages identified from manifest -- skipping source analysis.")
+                self.logger.warning("No application package identified from manifest -- skipping source analysis.")
 
 
 def main():
