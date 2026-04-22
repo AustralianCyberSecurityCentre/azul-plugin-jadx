@@ -1,5 +1,6 @@
 """Parses JADX-decompiled Java source files to extract code features."""
 
+import pathlib
 import re
 from dataclasses import dataclass, field
 
@@ -47,7 +48,7 @@ class _CodeFeatures:
     interfaces: set[str] = field(default_factory=set)
 
 
-def analyse_files(java_files: list[str]) -> dict[str, list[str]]:
+def analyse_files(java_files: list[str | pathlib.Path]) -> dict[str, list[str]]:
     """Extract code features from JADX-decompiled .java files.
 
     Returns a dict mapping feature name to a deduplicated list of values,
@@ -65,7 +66,7 @@ def analyse_files(java_files: list[str]) -> dict[str, list[str]]:
     return {k: list(v)[:_MAX_FEATURES_PER_KEY] for k, v in vars(features).items()}
 
 
-def _analyse_single_file(java_file: str, features: _CodeFeatures) -> None:
+def _analyse_single_file(java_file: str | pathlib.Path, features: _CodeFeatures) -> None:
     """Extract features from a single .java file and populate the provided sets."""
     with open(java_file, encoding="utf-8", errors="replace") as f:
         lines = f.readlines()

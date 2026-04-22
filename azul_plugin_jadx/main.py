@@ -1,12 +1,12 @@
 """Decompiles Android APK/DEX files using JADX."""
 
 import os
+import pathlib
 import shutil
 import subprocess  # nosec B404
 import tempfile
 
 import magic
-import pygentree
 from azul_runner import (
     BinaryPlugin,
     DataLabel,
@@ -17,7 +17,6 @@ from azul_runner import (
     add_settings,
     cmdline_run,
 )
-from defusedxml import ElementTree
 
 from azul_plugin_jadx.apk_processor import java_analyser, source_extractor
 
@@ -28,19 +27,6 @@ from azul_plugin_jadx.apk_processor import java_analyser, source_extractor
 _ACCEPTED_MIME_PREFIXES = ("application/vnd.android", "application/zip", "application/java-archive")
 _JADX_TIMEOUT = 300
 _DEX_MIME = "application/x-dex"
-
-
-def _find_manifest(resources_dir: str) -> str | None:
-    """Walk resources_dir to find AndroidManifest.xml, returning the shallowest match so split-APK config manifests don't shadow the primary app manifest."""
-    if not os.path.isdir(resources_dir):
-        return None
-    candidates = []
-    for dirpath, _, filenames in os.walk(resources_dir):
-        if "AndroidManifest.xml" in filenames:
-            candidates.append(os.path.join(dirpath, "AndroidManifest.xml"))
-    if not candidates:
-        return None
-    return min(candidates, key=lambda p: p.count(os.sep))
 
 
 class AzulPluginJadx(BinaryPlugin):
@@ -95,12 +81,13 @@ class AzulPluginJadx(BinaryPlugin):
         if not jadx_bin:
             raise FileNotFoundError("JADX binary not found on PATH.")
 
-        if not os.path.exists(file_path):
+        file_path_obj = pathlib.Path(file_path)
+        if not file_path_obj.exists():
             raise FileNotFoundError(f"Could not find the file to run JADX on: '{file_path}'")
 
         try:
             result = subprocess.run(  # noqa: S603
-                [jadx_bin, "--output-dir", output_dir, "--deobf", file_path],
+                [jadx_bin, "--output-dir", output_dir, "--deobf", str(file_path_obj)],
                 capture_output=True,
                 text=True,
                 timeout=_JADX_TIMEOUT,
@@ -108,7 +95,7 @@ class AzulPluginJadx(BinaryPlugin):
                     "JADX_CACHE_DIR": tempfile.gettempdir(),
                     "JADX_CONFIG_DIR": tempfile.gettempdir(),
                     **os.environ,
-                },  # Set HOME to temp to avoid read-only filesystem issues (does not work)
+                },  # Set HOME to temp to avoid read-only filesystem issues
             )
         except subprocess.TimeoutExpired as e:
             raise RuntimeError(f"JADX timed out after {_JADX_TIMEOUT} seconds.") from e
@@ -117,8 +104,8 @@ class AzulPluginJadx(BinaryPlugin):
             self.logger.error(f"JADX failed with return code {result.returncode}. Stderr: {result.stderr}")
             raise RuntimeError(result.stderr)
 
-        sources_dir = os.path.join(output_dir, "sources")
-        if not os.path.isdir(sources_dir):
+        sources_dir = pathlib.Path(output_dir) / "sources"
+        if not sources_dir.is_dir():
             self.logger.error(f"JADX did not produce a sources directory at: {sources_dir}")
             raise RuntimeError(f"JADX did not produce a sources directory at: {sources_dir}")
 
@@ -144,68 +131,40 @@ class AzulPluginJadx(BinaryPlugin):
             except (RuntimeError, FileNotFoundError) as e:
                 return self.is_malformed(f"JADX failed: {e}")
 
-            resources_dir = os.path.join(output_dir, "resources")
-            sources_dir = os.path.join(output_dir, "sources")
-
-            # --- Parse AndroidManifest.xml ---
-            app_package: str = ""
-            manifest_path = _find_manifest(resources_dir)
-            if manifest_path:
-                try:
-                    tree = ElementTree.parse(manifest_path)
-                    app_package = tree.getroot().get("package", "")
-                    print(app_package)
-                except Exception:  # noqa: BLE001
-                    self.logger.warning("Failed to parse AndroidManifest.xml.")
-            else:
-                self.logger.warning("AndroidManifest.xml not found in JADX output.")
-
-            # TODO: Should we add AndroidManifest.xml as a data file here?
+            try:
+                extractor = source_extractor.SourceExtractor(output_dir, logger=self.logger)
+                java_src_files = extractor.get_user_source_files()
+            except source_extractor.ExtractorError as e:
+                self.logger.warning(f"Source file extraction failed: {e}")
+                java_src_files = {}
 
             # --- Add decompiled source files ---
-            if app_package and os.path.isdir(sources_dir):
-                java_files = source_extractor.get_user_source_files(sources_dir, [app_package])
-                with tempfile.NamedTemporaryFile(mode="w", delete=False) as java_src_file:
-                    src_name = java_src_file.name
-                    java_src_file.write( 
-                        f"\n// NOTE: {source_extractor._EXCLUDED_FILENAMES} files and third-party code are excluded from output.\n"
-                    )
+            if java_src_files:
+                with tempfile.NamedTemporaryFile(mode="w", delete=False) as f_java_src_files_combined:
+                    combined_src_name = f_java_src_files_combined.name
+                    extractor.combine_src_files(java_src_files, f_java_src_files_combined)
 
-                    java_src_file.write(f"\n// Application Package: {app_package}\n")
-                    java_src_file.write(
-                        f"{pygentree.DirectoryTreeGenerator(os.path.join(sources_dir, app_package.replace('.', os.sep)), sort_order='ascending').get_tree()}\n\n"
-                    )
-
-                    for java_file in java_files:
-                        try:
-                            with open(java_file, "rb") as f:
-                                java_src_file.write(f"\n// Source file: {java_file.removeprefix(sources_dir)}\n")
-                                java_src_file.write(f.read().decode(errors="replace"))
-                        except OSError:
-                            self.logger.warning(f"Could not read source file: {java_file}")
-
-                with open(src_name, "rb") as f:
+                with open(combined_src_name, "rb") as f:
                     self.logger.info(
-                        f"Adding decompiled Java source file with {len(java_files)} user-code files combined."
+                        f"Adding decompiled Java source file with {sum(len(files) for files in java_src_files.values())} user-code files combined."
                     )
                     self.add_data_file(DataLabel.DECOMPILED_JAVA, {}, f)
                     with open("test_output.log", "wb") as tf:
                         tf.write(f.read())
 
-                os.remove(src_name)
+                pathlib.Path(combined_src_name).unlink()
 
-                # --- Extract code features ---
-                if java_files:
+            # --- Extract code features ---
+            for _, files in java_src_files.items():
+                if files:
                     try:
-                        features = java_analyser.analyse_files(java_files)
+                        features = java_analyser.analyse_files(files)
                         for feat_key, feat_values in features.items():
                             if feat_values:
                                 self.add_feature_values(feat_key, feat_values)
-                        self.logger.info(f"Successfully analysed {len(java_files)} source files.")
+                        self.logger.info(f"Successfully analysed {len(files)} source files.")
                     except Exception:  # noqa: BLE001
                         self.logger.warning("Failed to analyse Java source files.")
-            else:
-                self.logger.warning("No application package identified from manifest -- skipping source analysis.")
 
 
 def main():
