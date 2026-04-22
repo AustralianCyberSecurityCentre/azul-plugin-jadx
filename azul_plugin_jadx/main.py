@@ -25,7 +25,6 @@ from azul_plugin_jadx.apk_processor import java_analyser, source_extractor
 # application/vnd.android. JAR files (application/java-archive) are valid
 # JADX inputs when they contain Android bytecode.
 _ACCEPTED_MIME_PREFIXES = ("application/vnd.android", "application/zip", "application/java-archive")
-_JADX_TIMEOUT = 300
 _DEX_MIME = "application/x-dex"
 
 
@@ -85,20 +84,16 @@ class AzulPluginJadx(BinaryPlugin):
         if not file_path_obj.exists():
             raise FileNotFoundError(f"Could not find the file to run JADX on: '{file_path}'")
 
-        try:
-            result = subprocess.run(  # noqa: S603
-                [jadx_bin, "--output-dir", output_dir, "--deobf", str(file_path_obj)],
-                capture_output=True,
-                text=True,
-                timeout=_JADX_TIMEOUT,
-                env={
-                    "JADX_CACHE_DIR": tempfile.gettempdir(),
-                    "JADX_CONFIG_DIR": tempfile.gettempdir(),
-                    **os.environ,
-                },  # Set HOME to temp to avoid read-only filesystem issues
-            )
-        except subprocess.TimeoutExpired as e:
-            raise RuntimeError(f"JADX timed out after {_JADX_TIMEOUT} seconds.") from e
+        result = subprocess.run(  # noqa: S603
+            [jadx_bin, "--output-dir", output_dir, "--deobf", str(file_path_obj)],
+            capture_output=True,
+            text=True,
+            env={
+                "JADX_CACHE_DIR": tempfile.gettempdir(),
+                "JADX_CONFIG_DIR": tempfile.gettempdir(),
+                **os.environ,
+            },  # Set HOME to temp to avoid read-only filesystem issues
+        )
 
         if result.returncode != 0 and result.returncode not in (1, 3):
             self.logger.error(f"JADX failed with return code {result.returncode}. Stderr: {result.stderr}")
@@ -124,37 +119,36 @@ class AzulPluginJadx(BinaryPlugin):
         if not any(mime.startswith(p) for p in _ACCEPTED_MIME_PREFIXES) and mime != _DEX_MIME:
             return State(State.Label.OPT_OUT, message="Not a valid APK/DEX file.")
 
-        with tempfile.TemporaryDirectory(delete=False) as temp_dir:
+        with tempfile.TemporaryDirectory() as temp_dir:
             # --- Run JADX ---
             try:
                 output_dir = self._run_jadx_decompile(file_path, temp_dir)
             except (RuntimeError, FileNotFoundError) as e:
                 return self.is_malformed(f"JADX failed: {e}")
 
+            # --- Locate user source files ---
             try:
-                extractor = source_extractor.SourceExtractor(output_dir, logger=self.logger)
+                extractor = source_extractor.SourceExtractor(output_dir)
                 java_src_files = extractor.get_user_source_files()
             except source_extractor.ExtractorError as e:
                 self.logger.warning(f"Source file extraction failed: {e}")
                 java_src_files = {}
 
-            # --- Add decompiled source files ---
+            # --- Combine and upload source files ---
             if java_src_files:
                 with tempfile.NamedTemporaryFile(mode="w", delete=False) as f_java_src_files_combined:
-                    combined_src_name = f_java_src_files_combined.name
+                    combined_src_filepath = f_java_src_files_combined.name
                     extractor.combine_src_files(java_src_files, f_java_src_files_combined)
 
-                with open(combined_src_name, "rb") as f:
+                with open(combined_src_filepath, "rb") as f:
                     self.logger.info(
                         f"Adding decompiled Java source file with {sum(len(files) for files in java_src_files.values())} user-code files combined."
                     )
                     self.add_data_file(DataLabel.DECOMPILED_JAVA, {}, f)
-                    with open("test_output.log", "wb") as tf:
-                        tf.write(f.read())
 
-                pathlib.Path(combined_src_name).unlink()
+                pathlib.Path(combined_src_filepath).unlink()
 
-            # --- Extract code features ---
+            # --- Extract features from source files ---
             for _, files in java_src_files.items():
                 if files:
                     try:

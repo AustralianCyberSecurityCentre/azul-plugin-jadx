@@ -2,8 +2,8 @@
 
 import pathlib
 
-import defusedxml
 import pygentree
+from defusedxml import ElementTree
 
 _EXCLUDED_FILENAMES = ["R.java", "BuildConfig.java"]
 _ANDROID_NS = "http://schemas.android.com/apk/res/android"
@@ -16,13 +16,19 @@ class ExtractorError(Exception):
 class SourceExtractor:
     """Extracts user-authored Java source files from JADX output, excluding auto-generated and third-party code."""
 
-    def __init__(self, jadx_output_dir: str, logger=None):
-        self.logger = logger
+    def __init__(self, jadx_output_dir: str):
         self.output_dir: pathlib.Path = pathlib.Path(jadx_output_dir)
+
         self.source_dir: pathlib.Path = self.output_dir / "sources"
+        if not self.source_dir.is_dir():
+            raise ExtractorError(f"Sources directory not found in JADX output: {self.source_dir}")
+
         self.resources_dir: pathlib.Path = self.output_dir / "resources"
-        self.manifest_path: pathlib.Path | None = self._find_manifest()
-        self._root = defusedxml.ElementTree.parse(self.manifest_path).getroot() if self.manifest_path else None
+        if not self.resources_dir.is_dir():
+            raise ExtractorError(f"Resources directory not found in JADX output: {self.resources_dir}")
+
+        self.manifest_path: pathlib.Path = self._find_manifest()
+        self._root = ElementTree.parse(self.manifest_path).getroot() if self.manifest_path else None
         self.launcher_activity = self._get_launcher_activity() if self._root else ""
         self.package_name = self._get_package_name() if self._root else ""
         self.app_name = self._get_app_name() if self._root else ""
@@ -30,11 +36,11 @@ class SourceExtractor:
 
     def _generate_fqn_to_path_map(self) -> dict[str, pathlib.Path]:
         """Generate a mapping of fully qualified names to their corresponding directory paths in the sources directory."""
-        fqn_to_path_map = {}
-        for fqn in [self.launcher_activity, self.package_name, self.app_name]:
-            if fqn:
-                fqn_to_path_map[fqn] = self._get_deepest_valid_directory_from_fqn(fqn)
-        return fqn_to_path_map
+        return {
+            fqn: self._get_deepest_valid_directory_from_fqn(fqn)
+            for fqn in [self.launcher_activity, self.package_name, self.app_name]
+            if fqn
+        }
 
     def _get_deepest_valid_directory_from_fqn(self, fqn: str) -> str | None:
         """Given a fqn name and the sources directory, return the deepest valid directory that corresponds to it."""
@@ -43,30 +49,29 @@ class SourceExtractor:
 
         for c in components:
             candidate_dir = fqn_dir / c
-            if candidate_dir.is_dir():
+            if candidate_dir.is_dir() and candidate_dir != self.source_dir:
                 fqn_dir = candidate_dir
             else:
                 break
 
         return fqn_dir
 
-    def _find_manifest(self) -> pathlib.Path | None:
+    def _find_manifest(self) -> pathlib.Path:
         """Walk resources_dir to find AndroidManifest.xml, returning the shallowest match so split-APK config manifests don't shadow the primary app manifest."""
         if not self.resources_dir.is_dir():
-            return None
+            raise ExtractorError(f"Resources directory not found in JADX output: {self.resources_dir}")
 
         candidates = []
         for dirpath, _, filenames in self.resources_dir.walk():
             if "AndroidManifest.xml" in filenames:
                 candidates.append(pathlib.Path(dirpath) / "AndroidManifest.xml")
         if not candidates:
-            return None
+            raise ExtractorError(f"AndroidManifest.xml not found in resources directory: {self.resources_dir}")
         return min(candidates, key=lambda p: len(p.parts))
 
     def _get_launcher_activity(self):
-
+        """Extract the launcher activity FQN from the manifest, if specified."""
         name = ""
-
         # Android XML uses namespaces; we must extract them
         ns = {"android": _ANDROID_NS}
         for activity in self._root.findall(".//activity"):
@@ -84,11 +89,11 @@ class SourceExtractor:
         return name
 
     def _get_package_name(self) -> str:
-        """Extract the main application package from the manifest."""
+        """Extract the main application FQN from the manifest."""
         return self._root.get("package", "")
 
     def _get_app_name(self) -> str:
-        """Extract the application name from the manifest, if specified."""
+        """Extract the application name FQN from the manifest, if specified."""
         return self._root.get("application", {}).get(f"{{{_ANDROID_NS}}}name", "")
 
     def get_user_source_files(self) -> dict[str : list[pathlib.Path]]:
