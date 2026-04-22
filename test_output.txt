@@ -1,0 +1,646 @@
+
+// NOTE: ['R.java', 'BuildConfig.java'] files and third-party code are excluded from output.
+
+// Manifest: AndroidManifest.xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    android:versionCode="5"
+    android:versionName="1.4.0"
+    android:compileSdkVersion="36"
+    android:compileSdkVersionCodename="16"
+    package="net.tlfoxhuman.droidstress"
+    platformBuildVersionCode="36"
+    platformBuildVersionName="16">
+    <uses-sdk
+        android:minSdkVersion="16"
+        android:targetSdkVersion="36"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <permission
+        android:name="net.tlfoxhuman.droidstress.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        android:protectionLevel="signature"/>
+    <uses-permission android:name="net.tlfoxhuman.droidstress.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"/>
+    <application
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="true"
+        android:supportsRtl="true"
+        android:extractNativeLibs="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+        android:dataExtractionRules="@xml/data_extraction_rules">
+        <activity
+            android:theme="@style/Theme.DroidStress"
+            android:name="net.tlfoxhuman.droidstress.AboutActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"/>
+        <activity
+            android:theme="@style/Theme.BlankScreen"
+            android:name="net.tlfoxhuman.droidstress.BlankScreenActivity"
+            android:exported="true"/>
+        <activity
+            android:theme="@style/Theme.DroidStress"
+            android:name="net.tlfoxhuman.droidstress.MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <service
+            android:name="net.tlfoxhuman.droidstress.StressService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"/>
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:exported="false"
+            android:authorities="net.tlfoxhuman.droidstress.androidx-startup">
+            <meta-data
+                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+                android:value="androidx.startup"/>
+            <meta-data
+                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+                android:value="androidx.startup"/>
+            <meta-data
+                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+                android:value="androidx.startup"/>
+        </provider>
+        <receiver
+            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+            android:permission="android.permission.DUMP"
+            android:enabled="true"
+            android:exported="true"
+            android:directBootAware="false">
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.SKIP_FILE"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION"/>
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
+
+// Package: net.tlfoxhuman.droidstress.MainActivity
+droidstress/
+├── AboutActivity.java
+├── BlankScreenActivity.java
+├── MainActivity.java
+├── R.java
+└── StressService.java
+
+
+// Source file: net/tlfoxhuman/droidstress/MainActivity.java
+package net.tlfoxhuman.droidstress;
+
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.content.Intent;
+import android.os.Build;
+import android.os.Bundle;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.Window;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+import java.util.WeakHashMap;
+import net.tlfoxhuman.droidstress.BlankScreenActivity;
+import net.tlfoxhuman.droidstress.MainActivity;
+import net.tlfoxhuman.droidstress.R;
+import net.tlfoxhuman.droidstress.StressService;
+import p000.AbstractActivityC0490q2;
+import p000.AbstractC0037ar;
+import p000.AbstractC0136e7;
+import p000.AbstractC0271in;
+import p000.AbstractC0514qq;
+import p000.C0039b;
+import p000.C0153eo;
+import p000.C0426ns;
+import p000.C0456os;
+import p000.C0459p1;
+import p000.C0483pp;
+import p000.C0486ps;
+import p000.C0489q1;
+import p000.C0516qs;
+import p000.C0585t7;
+import p000.C0770zg;
+
+/* JADX INFO: compiled from: r8-map-id-9e349556e2460a6352b8ed1375b14839a969e02aa73afd84304cc1ba47b47980 */
+/* JADX INFO: loaded from: classes.dex */
+public final class MainActivity extends AbstractActivityC0490q2 {
+
+    /* JADX INFO: renamed from: B */
+    public static final /* synthetic */ int f1502B = 0;
+
+    /* JADX INFO: renamed from: A */
+    public final C0489q1 f1503A;
+
+    /* JADX INFO: renamed from: w */
+    public boolean f1504w;
+
+    /* JADX INFO: renamed from: x */
+    public boolean f1505x;
+
+    /* JADX INFO: renamed from: y */
+    public long f1506y;
+
+    /* JADX INFO: renamed from: z */
+    public Intent f1507z;
+
+    public MainActivity() {
+        C0459p1 c0459p1 = new C0459p1(1);
+        C0039b c0039b = new C0039b(6);
+        this.f1503A = this.f96k.m96c("activity_rq#" + this.f95j.getAndIncrement(), this, c0459p1, c0039b);
+    }
+
+    @Override // p000.AbstractActivityC0490q2, androidx.activity.AbstractActivityC0025a, p000.AbstractActivityC0048b8, android.app.Activity
+    public final void onCreate(Bundle bundle) {
+        super.onCreate(bundle);
+        setContentView(R.layout.activity_main);
+        View viewFindViewById = findViewById(R.id.main);
+        C0039b c0039b = new C0039b(5);
+        WeakHashMap weakHashMap = AbstractC0037ar.f427a;
+        int i = Build.VERSION.SDK_INT;
+        if (i >= 21) {
+            AbstractC0514qq.m1174u(viewFindViewById, c0039b);
+        }
+        this.f1507z = new Intent(getApplication(), (Class<?>) StressService.class);
+        m1010q();
+        if (AbstractC0136e7.m461f(this, "android.permission.POST_NOTIFICATIONS") != 0) {
+            this.f1503A.m1119h0();
+        }
+        final int i2 = 0;
+        if (i >= 26) {
+            String string = getString(R.string.notif_channel_name);
+            string.getClass();
+            String string2 = getString(R.string.notif_channel_description);
+            string2.getClass();
+            NotificationChannel notificationChannel = new NotificationChannel("net.tlfoxhuman.droidstress.notif.fgservice", string, 0);
+            notificationChannel.setDescription(string2);
+            Object systemService = getSystemService("notification");
+            systemService.getClass();
+            ((NotificationManager) systemService).createNotificationChannel(notificationChannel);
+        }
+        final int i3 = 1;
+        if (i >= 35) {
+            Window window = getWindow();
+            getWindow().getDecorView();
+            int i4 = Build.VERSION.SDK_INT;
+            (i4 >= 30 ? new C0516qs(window) : i4 >= 26 ? new C0486ps(window) : i4 >= 23 ? new C0456os(window) : i4 >= 20 ? new C0426ns(window) : new C0483pp(29)).mo1057s(!((getResources().getConfiguration().uiMode & 48) == 32));
+        }
+        ((EditText) findViewById(R.id.threadsInput)).setText(String.valueOf(Runtime.getRuntime().availableProcessors()));
+        ((Button) findViewById(R.id.startbutton)).setOnClickListener(new View.OnClickListener(this) { // from class: xg
+
+            /* JADX INFO: renamed from: b */
+            public final /* synthetic */ MainActivity f2527b;
+
+            {
+                this.f2527b = this;
+            }
+
+            @Override // android.view.View.OnClickListener
+            public final void onClick(View view) {
+                switch (i2) {
+                    case 0:
+                        MainActivity mainActivity = this.f2527b;
+                        int i5 = MainActivity.f1502B;
+                        boolean z = StressService.f1510b;
+                        if (!StressService.f1510b) {
+                            if (AbstractC0136e7.m461f(mainActivity, "android.permission.POST_NOTIFICATIONS") != 0) {
+                                mainActivity.f1503A.m1119h0();
+                                return;
+                            }
+                            Intent intent = mainActivity.f1507z;
+                            if (intent != null) {
+                                mainActivity.m1011r(intent);
+                                return;
+                            } else {
+                                AbstractC0234hf.m674X("svcobj");
+                                throw null;
+                            }
+                        }
+                        Intent intent2 = mainActivity.f1507z;
+                        if (intent2 == null) {
+                            AbstractC0234hf.m674X("svcobj");
+                            throw null;
+                        }
+                        mainActivity.stopService(intent2);
+                        mainActivity.f1505x = false;
+                        if (!mainActivity.f1504w) {
+                            ((Button) mainActivity.findViewById(R.id.startbutton)).setText(R.string.start);
+                            ((TextView) mainActivity.findViewById(R.id.statusText)).setText(mainActivity.getText(R.string.stopped));
+                            return;
+                        }
+                        Intent intent3 = mainActivity.f1507z;
+                        if (intent3 == null) {
+                            AbstractC0234hf.m674X("svcobj");
+                            throw null;
+                        }
+                        mainActivity.m1011r(intent3);
+                        mainActivity.f1504w = false;
+                        return;
+                    default:
+                        MainActivity mainActivity2 = this.f2527b;
+                        int i6 = MainActivity.f1502B;
+                        mainActivity2.startActivity(new Intent(mainActivity2, (Class<?>) BlankScreenActivity.class));
+                        return;
+                }
+            }
+        });
+        ((Button) findViewById(R.id.blankscreenButton)).setOnClickListener(new View.OnClickListener(this) { // from class: xg
+
+            /* JADX INFO: renamed from: b */
+            public final /* synthetic */ MainActivity f2527b;
+
+            {
+                this.f2527b = this;
+            }
+
+            @Override // android.view.View.OnClickListener
+            public final void onClick(View view) {
+                switch (i3) {
+                    case 0:
+                        MainActivity mainActivity = this.f2527b;
+                        int i5 = MainActivity.f1502B;
+                        boolean z = StressService.f1510b;
+                        if (!StressService.f1510b) {
+                            if (AbstractC0136e7.m461f(mainActivity, "android.permission.POST_NOTIFICATIONS") != 0) {
+                                mainActivity.f1503A.m1119h0();
+                                return;
+                            }
+                            Intent intent = mainActivity.f1507z;
+                            if (intent != null) {
+                                mainActivity.m1011r(intent);
+                                return;
+                            } else {
+                                AbstractC0234hf.m674X("svcobj");
+                                throw null;
+                            }
+                        }
+                        Intent intent2 = mainActivity.f1507z;
+                        if (intent2 == null) {
+                            AbstractC0234hf.m674X("svcobj");
+                            throw null;
+                        }
+                        mainActivity.stopService(intent2);
+                        mainActivity.f1505x = false;
+                        if (!mainActivity.f1504w) {
+                            ((Button) mainActivity.findViewById(R.id.startbutton)).setText(R.string.start);
+                            ((TextView) mainActivity.findViewById(R.id.statusText)).setText(mainActivity.getText(R.string.stopped));
+                            return;
+                        }
+                        Intent intent3 = mainActivity.f1507z;
+                        if (intent3 == null) {
+                            AbstractC0234hf.m674X("svcobj");
+                            throw null;
+                        }
+                        mainActivity.m1011r(intent3);
+                        mainActivity.f1504w = false;
+                        return;
+                    default:
+                        MainActivity mainActivity2 = this.f2527b;
+                        int i6 = MainActivity.f1502B;
+                        mainActivity2.startActivity(new Intent(mainActivity2, (Class<?>) BlankScreenActivity.class));
+                        return;
+                }
+            }
+        });
+        View viewFindViewById2 = findViewById(R.id.threadsInput);
+        viewFindViewById2.getClass();
+        ((TextView) viewFindViewById2).addTextChangedListener(new C0770zg(this, i2));
+    }
+
+    @Override // android.app.Activity
+    public final boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.mainactivity_menu, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override // p000.AbstractActivityC0490q2, android.app.Activity
+    public final void onDestroy() {
+        this.f1505x = false;
+        super.onDestroy();
+    }
+
+    @Override // android.app.Activity
+    public final boolean onOptionsItemSelected(MenuItem menuItem) {
+        menuItem.getClass();
+        if (menuItem.getItemId() != R.id.menu_about) {
+            return true;
+        }
+        startActivity(new Intent(this, (Class<?>) AboutActivity.class));
+        return true;
+    }
+
+    /* JADX INFO: renamed from: q */
+    public final void m1010q() {
+        boolean z = StressService.f1510b;
+        if (StressService.f1510b) {
+            ((Button) findViewById(R.id.startbutton)).setText(R.string.stop);
+            ((TextView) findViewById(R.id.statusText)).setText(getText(R.string.running));
+        } else {
+            ((Button) findViewById(R.id.startbutton)).setText(R.string.start);
+            ((TextView) findViewById(R.id.statusText)).setText(getText(R.string.stopped));
+        }
+        this.f1505x = StressService.f1511c;
+        this.f1506y = StressService.f1512d;
+        ((EditText) findViewById(R.id.threadsInput)).setText(String.valueOf(StressService.f1514f));
+        if (StressService.f1513e != 0) {
+            ((EditText) findViewById(R.id.durationInput)).setText(String.valueOf(StressService.f1513e));
+        }
+        if (this.f1505x) {
+            new C0153eo(new C0585t7(this, 1)).start();
+        }
+    }
+
+    /* JADX INFO: renamed from: r */
+    public final void m1011r(Intent intent) {
+        Integer numM758j0 = AbstractC0271in.m758j0(((EditText) findViewById(R.id.durationInput)).getText().toString());
+        if (numM758j0 != null && numM758j0.intValue() != 0) {
+            this.f1505x = true;
+            boolean z = StressService.f1510b;
+            StressService.f1511c = true;
+            long jCurrentTimeMillis = (System.currentTimeMillis() / 1000) + ((long) (numM758j0.intValue() * 60));
+            this.f1506y = jCurrentTimeMillis;
+            StressService.f1512d = jCurrentTimeMillis;
+            StressService.f1513e = numM758j0.intValue();
+        }
+        boolean z2 = StressService.f1510b;
+        Integer numM758j02 = AbstractC0271in.m758j0(((EditText) findViewById(R.id.threadsInput)).getText().toString());
+        StressService.f1514f = numM758j02 != null ? numM758j02.intValue() : 8;
+        m1010q();
+        startService(intent);
+        ((Button) findViewById(R.id.startbutton)).setText(R.string.stop);
+        ((TextView) findViewById(R.id.statusText)).setText(getText(R.string.running));
+    }
+}
+
+// Source file: net/tlfoxhuman/droidstress/StressService.java
+package net.tlfoxhuman.droidstress;
+
+import android.app.Service;
+import android.content.Intent;
+import android.os.IBinder;
+import android.os.PowerManager;
+import p000.AbstractC0234hf;
+
+/* JADX INFO: compiled from: r8-map-id-9e349556e2460a6352b8ed1375b14839a969e02aa73afd84304cc1ba47b47980 */
+/* JADX INFO: loaded from: classes.dex */
+public final class StressService extends Service {
+
+    /* JADX INFO: renamed from: b */
+    public static volatile boolean f1510b = false;
+
+    /* JADX INFO: renamed from: c */
+    public static volatile boolean f1511c = false;
+
+    /* JADX INFO: renamed from: d */
+    public static volatile long f1512d = 0;
+
+    /* JADX INFO: renamed from: e */
+    public static volatile int f1513e = 0;
+
+    /* JADX INFO: renamed from: f */
+    public static int f1514f = 8;
+
+    /* JADX INFO: renamed from: a */
+    public PowerManager.WakeLock f1515a;
+
+    @Override // android.app.Service
+    public final IBinder onBind(Intent intent) {
+        return null;
+    }
+
+    @Override // android.app.Service
+    public final void onDestroy() {
+        f1510b = false;
+        f1511c = false;
+        f1512d = 0L;
+        f1513e = 0;
+        PowerManager.WakeLock wakeLock = this.f1515a;
+        if (wakeLock == null) {
+            AbstractC0234hf.m674X("wakelock");
+            throw null;
+        }
+        wakeLock.release();
+        super.onDestroy();
+    }
+
+    /* JADX WARN: Multi-variable type inference failed */
+    /* JADX WARN: Removed duplicated region for block: B:101:0x0255  */
+    /* JADX WARN: Removed duplicated region for block: B:104:0x027e  */
+    /* JADX WARN: Removed duplicated region for block: B:106:0x0281  */
+    /* JADX WARN: Removed duplicated region for block: B:113:0x029c  */
+    /* JADX WARN: Removed duplicated region for block: B:126:0x02ce  */
+    /* JADX WARN: Removed duplicated region for block: B:130:0x02df  */
+    /* JADX WARN: Removed duplicated region for block: B:142:0x0340 A[LOOP:1: B:142:0x0340->B:144:0x034f, LOOP_START, PHI: r14
+      0x0340: PHI (r14v5 int) = (r14v4 int), (r14v6 int) binds: [B:141:0x033e, B:144:0x034f] A[DONT_GENERATE, DONT_INLINE]] */
+    /* JADX WARN: Removed duplicated region for block: B:147:0x0356  */
+    /* JADX WARN: Removed duplicated region for block: B:149:0x0365 A[RETURN] */
+    /* JADX WARN: Removed duplicated region for block: B:98:0x024b  */
+    /* JADX WARN: Type inference failed for: r10v8, types: [android.app.Notification$Builder] */
+    /* JADX WARN: Type inference failed for: r15v1, types: [android.app.Notification$Builder] */
+    /* JADX WARN: Type inference failed for: r15v3 */
+    /* JADX WARN: Type inference failed for: r15v4 */
+    /* JADX WARN: Type inference failed for: r3v22 */
+    /* JADX WARN: Type inference failed for: r3v23 */
+    /* JADX WARN: Type inference failed for: r3v24, types: [android.net.Uri, java.lang.CharSequence, java.lang.CharSequence[], java.lang.String, long[]] */
+    /* JADX WARN: Type inference failed for: r3v35 */
+    /* JADX WARN: Type inference failed for: r3v39 */
+    /* JADX WARN: Type inference failed for: r3v51 */
+    /* JADX WARN: Type inference failed for: r5v1 */
+    /* JADX WARN: Type inference failed for: r5v2, types: [android.os.Bundle] */
+    /* JADX WARN: Type inference failed for: r5v9 */
+    /* JADX WARN: Type inference failed for: r8v14 */
+    /* JADX WARN: Type inference failed for: r8v7 */
+    /* JADX WARN: Type inference failed for: r8v8, types: [android.app.Notification, java.lang.String] */
+    @Override // android.app.Service
+    /*
+        Code decompiled incorrectly, please refer to instructions dump.
+        To view partially-correct add '--show-bad-code' argument
+    */
+    public final int onStartCommand(android.content.Intent r19, int r20, int r21) {
+        /*
+            Method dump skipped, instruction units count: 871
+            To view this dump add '--comments-level debug' option
+        */
+        throw new UnsupportedOperationException("Method not decompiled: net.tlfoxhuman.droidstress.StressService.onStartCommand(android.content.Intent, int, int):int");
+    }
+}
+
+// Source file: net/tlfoxhuman/droidstress/AboutActivity.java
+package net.tlfoxhuman.droidstress;
+
+import android.os.Build;
+import android.os.Bundle;
+import android.text.Html;
+import android.text.method.LinkMovementMethod;
+import android.view.View;
+import android.widget.TextView;
+import java.util.WeakHashMap;
+import p000.AbstractActivityC0490q2;
+import p000.AbstractC0037ar;
+import p000.AbstractC0514qq;
+import p000.C0039b;
+
+/* JADX INFO: compiled from: r8-map-id-9e349556e2460a6352b8ed1375b14839a969e02aa73afd84304cc1ba47b47980 */
+/* JADX INFO: loaded from: classes.dex */
+public final class AboutActivity extends AbstractActivityC0490q2 {
+
+    /* JADX INFO: renamed from: w */
+    public static final /* synthetic */ int f1499w = 0;
+
+    @Override // p000.AbstractActivityC0490q2, androidx.activity.AbstractActivityC0025a, p000.AbstractActivityC0048b8, android.app.Activity
+    public final void onCreate(Bundle bundle) {
+        super.onCreate(bundle);
+        setContentView(R.layout.activity_about);
+        View viewFindViewById = findViewById(R.id.main);
+        C0039b c0039b = new C0039b(0);
+        WeakHashMap weakHashMap = AbstractC0037ar.f427a;
+        int i = Build.VERSION.SDK_INT;
+        if (i >= 21) {
+            AbstractC0514qq.m1174u(viewFindViewById, c0039b);
+        }
+        ((TextView) findViewById(R.id.versionView)).setText(getPackageManager().getPackageInfo(getPackageName(), 0).versionName);
+        if (i >= 24) {
+            ((TextView) findViewById(R.id.copyrightView)).setText(Html.fromHtml(getString(R.string.copyright_html), 0));
+            ((TextView) findViewById(R.id.gplTextView)).setText(Html.fromHtml(getString(R.string.gpl_html), 0));
+        } else {
+            ((TextView) findViewById(R.id.copyrightView)).setText(Html.fromHtml(getString(R.string.copyright_html)));
+            ((TextView) findViewById(R.id.gplTextView)).setText(Html.fromHtml(getString(R.string.gpl_html)));
+        }
+        ((TextView) findViewById(R.id.copyrightView)).setMovementMethod(LinkMovementMethod.getInstance());
+        ((TextView) findViewById(R.id.gplTextView)).setMovementMethod(LinkMovementMethod.getInstance());
+    }
+}
+
+// Source file: net/tlfoxhuman/droidstress/BlankScreenActivity.java
+package net.tlfoxhuman.droidstress;
+
+import android.content.res.Resources;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.PowerManager;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import java.util.WeakHashMap;
+import net.tlfoxhuman.droidstress.BlankScreenActivity;
+import p000.AbstractActivityC0490q2;
+import p000.AbstractC0037ar;
+import p000.AbstractC0234hf;
+import p000.AbstractC0514qq;
+import p000.AbstractC0648va;
+import p000.C0039b;
+import p000.C0483pp;
+import p000.C0571sn;
+import p000.C0601tn;
+import p000.C0677wa;
+import p000.C0706xa;
+import p000.C0735ya;
+import p000.C0764za;
+import p000.InterfaceC0012ab;
+
+/* JADX INFO: compiled from: r8-map-id-9e349556e2460a6352b8ed1375b14839a969e02aa73afd84304cc1ba47b47980 */
+/* JADX INFO: loaded from: classes.dex */
+public final class BlankScreenActivity extends AbstractActivityC0490q2 {
+
+    /* JADX INFO: renamed from: x */
+    public static final /* synthetic */ int f1500x = 0;
+
+    /* JADX INFO: renamed from: w */
+    public PowerManager.WakeLock f1501w;
+
+    @Override // p000.AbstractActivityC0490q2, androidx.activity.AbstractActivityC0025a, p000.AbstractActivityC0048b8, android.app.Activity
+    public final void onCreate(Bundle bundle) {
+        super.onCreate(bundle);
+        int i = AbstractC0648va.f2311a;
+        C0571sn c0571sn = C0571sn.f2084a;
+        C0601tn c0601tn = new C0601tn(0, 0, c0571sn);
+        C0601tn c0601tn2 = new C0601tn(AbstractC0648va.f2311a, AbstractC0648va.f2312b, c0571sn);
+        View decorView = getWindow().getDecorView();
+        decorView.getClass();
+        Resources resources = decorView.getResources();
+        resources.getClass();
+        boolean zBooleanValue = ((Boolean) c0571sn.mo259b(resources)).booleanValue();
+        Resources resources2 = decorView.getResources();
+        resources2.getClass();
+        boolean zBooleanValue2 = ((Boolean) c0571sn.mo259b(resources2)).booleanValue();
+        InterfaceC0012ab c0677wa = AbstractC0648va.f2313c;
+        if (c0677wa == null) {
+            int i2 = Build.VERSION.SDK_INT;
+            if (i2 >= 29) {
+                c0677wa = new C0764za();
+            } else if (i2 >= 26) {
+                c0677wa = new C0735ya();
+            } else if (i2 >= 23) {
+                c0677wa = new C0706xa();
+            } else {
+                c0677wa = i2 >= 21 ? new C0677wa() : new C0483pp(6);
+                AbstractC0648va.f2313c = c0677wa;
+            }
+        }
+        InterfaceC0012ab interfaceC0012ab = c0677wa;
+        Window window = getWindow();
+        window.getClass();
+        interfaceC0012ab.mo49b(c0601tn, c0601tn2, window, decorView, zBooleanValue, zBooleanValue2);
+        setContentView(R.layout.activity_blank_screen);
+        View viewFindViewById = findViewById(R.id.main);
+        C0039b c0039b = new C0039b(1);
+        WeakHashMap weakHashMap = AbstractC0037ar.f427a;
+        int i3 = Build.VERSION.SDK_INT;
+        if (i3 >= 21) {
+            AbstractC0514qq.m1174u(viewFindViewById, c0039b);
+        }
+        Object systemService = getSystemService("power");
+        systemService.getClass();
+        PowerManager.WakeLock wakeLockNewWakeLock = ((PowerManager) systemService).newWakeLock(6, "BlankScreenActivity::BlankScreenIsActive");
+        wakeLockNewWakeLock.getClass();
+        this.f1501w = wakeLockNewWakeLock;
+        wakeLockNewWakeLock.acquire();
+        if (i3 <= 29) {
+            getWindow().getDecorView().setSystemUiVisibility(5638);
+            getWindow().getDecorView().setOnSystemUiVisibilityChangeListener(new View.OnSystemUiVisibilityChangeListener() { // from class: u6
+                @Override // android.view.View.OnSystemUiVisibilityChangeListener
+                public final void onSystemUiVisibilityChange(int i4) {
+                    if ((i4 & 4) != 0) {
+                        int i5 = BlankScreenActivity.f1500x;
+                    } else {
+                        int i6 = BlankScreenActivity.f1500x;
+                        this.f2180a.getWindow().getDecorView().setSystemUiVisibility(5638);
+                    }
+                }
+            });
+            return;
+        }
+        WindowInsetsController windowInsetsController = getWindow().getDecorView().getWindowInsetsController();
+        if (windowInsetsController != null) {
+            windowInsetsController.hide(WindowInsets.Type.systemBars());
+            windowInsetsController.setSystemBarsBehavior(2);
+        }
+    }
+
+    @Override // p000.AbstractActivityC0490q2, android.app.Activity
+    public final void onDestroy() {
+        PowerManager.WakeLock wakeLock = this.f1501w;
+        if (wakeLock == null) {
+            AbstractC0234hf.m674X("wakelock");
+            throw null;
+        }
+        wakeLock.release();
+        super.onDestroy();
+    }
+}

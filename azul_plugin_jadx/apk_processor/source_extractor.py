@@ -35,12 +35,38 @@ class SourceExtractor:
         self._fqn_to_path_map = self._generate_fqn_to_path_map()
 
     def _generate_fqn_to_path_map(self) -> dict[str, pathlib.Path]:
-        """Generate a mapping of fully qualified names to their corresponding directory paths in the sources directory."""
-        return {
+        """Generate a mapping of fully qualified names to their corresponding directory paths in the sources directory.
+
+        De-duplicates FQNs: if one FQN is a parent of another, the longer (more specific) FQN is removed.
+        """
+        result = {
             fqn: self._get_deepest_valid_directory_from_fqn(fqn)
             for fqn in [self.launcher_activity, self.package_name, self.app_name]
             if fqn
         }
+        print(f"FQN to path map before pruning: {result}")
+
+        # De-duplicate: if one FQN is a parent of another, remove the longer (more specific) FQN
+        fqns_to_remove = set()
+        fqn_list = list(result.keys())
+        for i in range(len(fqn_list)):
+            for j in range(i + 1, len(fqn_list)):
+                fqn_a = fqn_list[i]
+                fqn_b = fqn_list[j]
+
+                path_a = result[fqn_a]
+                path_b = result[fqn_b]
+                if path_b.is_relative_to(path_a):
+                    fqns_to_remove.add(fqn_b)
+                elif path_a.is_relative_to(path_b):
+                    fqns_to_remove.add(fqn_a)
+
+        for fqn in fqns_to_remove:
+            del result[fqn]
+
+        print(f"FQN to path map after pruning: {result}")
+
+        return result
 
     def _get_deepest_valid_directory_from_fqn(self, fqn: str) -> str | None:
         """Given a fqn name and the sources directory, return the deepest valid directory that corresponds to it."""
@@ -51,6 +77,7 @@ class SourceExtractor:
             candidate_dir = fqn_dir / c
             if candidate_dir.is_dir() and candidate_dir != self.source_dir:
                 fqn_dir = candidate_dir
+                print(fqn_dir)
             else:
                 break
 
@@ -94,7 +121,10 @@ class SourceExtractor:
 
     def _get_app_name(self) -> str:
         """Extract the application name FQN from the manifest, if specified."""
-        return self._root.get("application", {}).get(f"{{{_ANDROID_NS}}}name", "")
+        application = self._root.find("application")
+        if application is not None:
+            return application.get(f"{{{_ANDROID_NS}}}name", "")
+        return ""
 
     def get_user_source_files(self) -> dict[str : list[pathlib.Path]]:
         """Return all user-defined .java files associated with the application.
