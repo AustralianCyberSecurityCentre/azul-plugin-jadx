@@ -39,16 +39,18 @@ class SourceExtractor:
 
         De-duplicates FQNs: if one FQN is a parent of another, the longer (more specific) FQN is removed.
         """
-        result = {
-            fqn: self._get_deepest_valid_directory_from_fqn(fqn)
-            for fqn in [self.launcher_activity, self.package_name, self.app_name]
-            if fqn
-        }
+        result: dict[str, pathlib.Path] = {}
+        for fqn in [self.launcher_activity, self.package_name, self.app_name]:
+            if fqn:
+                directory = self._get_deepest_valid_directory_from_fqn(fqn)
+                if directory:
+                    result[fqn] = directory
+
         print(f"FQN to path map before pruning: {result}")
 
         # De-duplicate: if one FQN is a parent of another, remove the longer (more specific) FQN
-        fqns_to_remove = set()
-        fqn_list = list(result.keys())
+        fqns_to_remove: set[str] = set()
+        fqn_list: list[str] = list(result.keys())
         for i in range(len(fqn_list)):
             for j in range(i + 1, len(fqn_list)):
                 fqn_a = fqn_list[i]
@@ -68,7 +70,7 @@ class SourceExtractor:
 
         return result
 
-    def _get_deepest_valid_directory_from_fqn(self, fqn: str) -> str | None:
+    def _get_deepest_valid_directory_from_fqn(self, fqn: str) -> pathlib.Path | None:
         """Given a fqn name and the sources directory, return the deepest valid directory that corresponds to it."""
         components = fqn.split(".")
         fqn_dir = self.source_dir
@@ -126,7 +128,7 @@ class SourceExtractor:
             return application.get(f"{{{_ANDROID_NS}}}name", "")
         return ""
 
-    def get_user_source_files(self) -> dict[str : list[pathlib.Path]]:
+    def get_user_source_files(self) -> dict[str, list[pathlib.Path]]:
         """Return all user-defined .java files associated with the application.
 
         Walks the FQN's subtree and collects all .java files except auto-generated ones
@@ -142,7 +144,7 @@ class SourceExtractor:
 
         return result
 
-    def combine_src_files(self, java_src_files: dict[str : list[pathlib.Path]], output_file) -> None:
+    def combine_src_files(self, java_src_files: dict[str, list[pathlib.Path]], output_file) -> None:
         """Combine multiple .java source files into a single output file, with separators and a directory tree."""
         output_file.write(f"\n// NOTE: {_EXCLUDED_FILENAMES} files and third-party code are excluded from output.\n")
 

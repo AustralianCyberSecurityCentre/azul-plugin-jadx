@@ -31,7 +31,7 @@ _DEX_MIME = "application/x-dex"
 class AzulPluginJadx(BinaryPlugin):
     """Decompiles Android APK/DEX files using JADX."""
 
-    VERSION = "2026.04.21"
+    VERSION = "2026.04.23"
     SETTINGS = add_settings(
         filter_max_content_size=(int, 100 * 1024 * 1024),
         filter_data_types={
@@ -146,8 +146,8 @@ class AzulPluginJadx(BinaryPlugin):
                         f"Adding decompiled Java source file with {sum(len(files) for files in java_src_files.values())} user-code files combined."
                     )
                     self.add_data_file(DataLabel.DECOMPILED_JAVA, {}, f)
-                    with open("test_output.txt", "wb") as f_out:
-                        f_out.write(f.read())
+                    # with open("test_output.log", "wb") as f_out:
+                    #     f_out.write(f.read())
 
                 pathlib.Path(combined_src_filepath).unlink()
 
