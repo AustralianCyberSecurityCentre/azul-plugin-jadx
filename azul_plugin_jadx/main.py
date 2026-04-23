@@ -119,7 +119,7 @@ class AzulPluginJadx(BinaryPlugin):
         if not any(mime.startswith(p) for p in _ACCEPTED_MIME_PREFIXES) and mime != _DEX_MIME:
             return State(State.Label.OPT_OUT, message="Not a valid APK/DEX file.")
 
-        with tempfile.TemporaryDirectory(delete=False) as temp_dir:
+        with tempfile.TemporaryDirectory() as temp_dir:
             # print(temp_dir)
             # --- Run JADX ---
             try:
