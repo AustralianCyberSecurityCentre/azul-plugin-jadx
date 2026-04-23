@@ -119,8 +119,8 @@ class AzulPluginJadx(BinaryPlugin):
         if not any(mime.startswith(p) for p in _ACCEPTED_MIME_PREFIXES) and mime != _DEX_MIME:
             return State(State.Label.OPT_OUT, message="Not a valid APK/DEX file.")
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # print(temp_dir)
+        with tempfile.TemporaryDirectory(delete=False) as temp_dir:
+            print(temp_dir)
             # --- Run JADX ---
             try:
                 output_dir = self._run_jadx_decompile(file_path, temp_dir)
@@ -146,8 +146,8 @@ class AzulPluginJadx(BinaryPlugin):
                         f"Adding decompiled Java source file with {sum(len(files) for files in java_src_files.values())} user-code files combined."
                     )
                     self.add_data_file(DataLabel.DECOMPILED_JAVA, {}, f)
-                    # with open("test_output.log", "wb") as f_out:
-                    #     f_out.write(f.read())
+                    with open("test_output.log", "wb") as f_out:
+                        f_out.write(f.read())
 
                 pathlib.Path(combined_src_filepath).unlink()
 
