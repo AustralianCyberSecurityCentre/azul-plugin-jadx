@@ -1,11 +1,27 @@
 """Finds user-authored Java source files in a JADX output directory."""
 
 import pathlib
+import shutil
 
 import pygentree
 from defusedxml import ElementTree
 
 _EXCLUDED_FILENAMES = ["R.java", "BuildConfig.java"]
+_EXCLUDED_PATH_COMPONENTS = [
+    "androidx",
+    "com/google",
+    "com/bumptech",
+    "com/airbnb",
+    "com/facebook",
+    "kotlin",
+    "kotlinx",
+    "org/jetbrains",
+    "dbuild",
+    "android/support",
+    "android/arch",
+    "android/databinding",
+    "android/viewbinding",
+]
 _ANDROID_NS = "http://schemas.android.com/apk/res/android"
 
 
@@ -46,8 +62,6 @@ class SourceExtractor:
                 if directory:
                     result[fqn] = directory
 
-        print(f"FQN to path map before pruning: {result}")
-
         # De-duplicate: if one FQN is a parent of another, remove the longer (more specific) FQN
         fqns_to_remove: set[str] = set()
         fqn_list: list[str] = list(result.keys())
@@ -66,8 +80,6 @@ class SourceExtractor:
         for fqn in fqns_to_remove:
             del result[fqn]
 
-        print(f"FQN to path map after pruning: {result}")
-
         return result
 
     def _get_deepest_valid_directory_from_fqn(self, fqn: str) -> pathlib.Path | None:
@@ -79,7 +91,6 @@ class SourceExtractor:
             candidate_dir = fqn_dir / c
             if candidate_dir.is_dir() and candidate_dir != self.source_dir:
                 fqn_dir = candidate_dir
-                print(fqn_dir)
             else:
                 break
 
@@ -137,10 +148,25 @@ class SourceExtractor:
         result = {}
         for fqn, base_dirpath in self._fqn_to_path_map.items():
             for dirpath, _, filenames in base_dirpath.walk():
-                for filename in filenames:
-                    if filename.endswith(".java") and filename not in _EXCLUDED_FILENAMES:
-                        file_path = pathlib.Path(dirpath) / filename
-                        result[fqn] = result.get(fqn, []) + [file_path]
+                # Exclude files in directories that contain any of the segments in _EXCLUDED_PATH_COMPONENTS, unless base_dirpath itself contains any of those segments.
+                if not any(seg in dirpath.as_posix() for seg in _EXCLUDED_PATH_COMPONENTS) or any(
+                    seg in base_dirpath.as_posix() for seg in _EXCLUDED_PATH_COMPONENTS
+                ):
+                    for filename in filenames:
+                        if filename.endswith(".java"):
+                            if filename not in _EXCLUDED_FILENAMES:
+                                file_path = pathlib.Path(dirpath) / filename
+                                result[fqn] = result.get(fqn, []) + [file_path]
+                            else:
+                                (pathlib.Path(dirpath) / filename).unlink(
+                                    missing_ok=True
+                                )  # Remove auto-generated file
+                else:
+                    # Remove entire directory if it contains excluded path segments and is not the base_dirpath
+                    shutil.rmtree(dirpath, ignore_errors=True)
+
+        for fqn in result:
+            result[fqn].sort()  # Sort alphabetically so output matches the pygentree output order
 
         return result
 
@@ -148,12 +174,17 @@ class SourceExtractor:
         """Combine multiple .java source files into a single output file, with separators and a directory tree."""
         output_file.write(f"\n// NOTE: {_EXCLUDED_FILENAMES} files and third-party code are excluded from output.\n")
 
-        with open(self.manifest_path, "rb") as f:
-            output_file.write(f"\n// Manifest: {self.manifest_path.relative_to(self.resources_dir)}\n")
-            output_file.write(f.read().decode(errors="replace"))
+        if self.package_name:
+            output_file.write(f"// Application package: {self.package_name}\n")
+        if self.launcher_activity:
+            output_file.write(f"// Launcher activity: {self.launcher_activity}\n")
+        if self.app_name:
+            output_file.write(f"// Application name: {self.app_name}\n")
 
         for fqn, _ in java_src_files.items():
-            output_file.write(f"\n// Package: {fqn}\n")
+            output_file.write(
+                f"\n// {self._fqn_to_path_map[fqn].as_posix().removeprefix(self.source_dir.as_posix() + '/')}\n"
+            )
             output_file.write(
                 f"{pygentree.DirectoryTreeGenerator(str(self._fqn_to_path_map[fqn]), sort_order='ascending').get_tree()}\n\n"
             )
@@ -162,5 +193,5 @@ class SourceExtractor:
             for java_file in java_files:
                 with open(java_file, "rb") as f:
                     rel_path = java_file.relative_to(self.source_dir)
-                    output_file.write(f"\n// Source file: {rel_path}\n")
+                    output_file.write(f"\n// {rel_path}\n")
                     output_file.write(f.read().decode(errors="replace"))

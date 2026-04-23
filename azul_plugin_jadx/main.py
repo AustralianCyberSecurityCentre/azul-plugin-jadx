@@ -85,7 +85,7 @@ class AzulPluginJadx(BinaryPlugin):
             raise FileNotFoundError(f"Could not find the file to run JADX on: '{file_path}'")
 
         result = subprocess.run(  # noqa: S603
-            [jadx_bin, "--output-dir", output_dir, "--deobf", str(file_path_obj)],
+            [jadx_bin, "--output-dir", output_dir, str(file_path_obj)],
             capture_output=True,
             text=True,
             env={
@@ -120,7 +120,7 @@ class AzulPluginJadx(BinaryPlugin):
             return State(State.Label.OPT_OUT, message="Not a valid APK/DEX file.")
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            print(temp_dir)
+            # print(temp_dir)
             # --- Run JADX ---
             try:
                 output_dir = self._run_jadx_decompile(file_path, temp_dir)
