@@ -31,7 +31,7 @@ _DEX_MIME = "application/x-dex"
 class AzulPluginJadx(BinaryPlugin):
     """Decompiles Android APK/DEX files using JADX."""
 
-    VERSION = "2026.04.23"
+    VERSION = "2026.04.24"
     SETTINGS = add_settings(
         filter_max_content_size=(int, 100 * 1024 * 1024),
         filter_data_types={
