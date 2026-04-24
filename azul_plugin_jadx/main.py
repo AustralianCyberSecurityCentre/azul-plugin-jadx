@@ -24,12 +24,16 @@ from azul_plugin_jadx.apk_processor import java_analyser, source_extractor
 # APKs are zip files so libmagic often reports application/zip instead of
 # application/vnd.android. JAR files (application/java-archive) are valid
 # JADX inputs when they contain Android bytecode.
-_ACCEPTED_MIME_PREFIXES = ("application/vnd.android", "application/zip", "application/java-archive")
-_DEX_MIME = "application/x-dex"
+_ACCEPTED_MIME_PREFIXES = (
+    "application/vnd.android",
+    "application/zip",
+    "application/java-archive",
+    "application/x-dex",
+)
 
 
 class AzulPluginJadx(BinaryPlugin):
-    """Decompiles Android APK/DEX files using JADX."""
+    """Decompiles Android APK/DEX files using JADX, extracts user-defined source files, and derives code features from them."""
 
     VERSION = "2026.04.24"
     SETTINGS = add_settings(
@@ -106,62 +110,91 @@ class AzulPluginJadx(BinaryPlugin):
 
         return output_dir
 
-    def execute(self, job: Job):
-        """Run the plugin."""
-        file_path = job.get_data().get_filepath()
-
-        # Pre-check: verify the file is an APK or DEX via libmagic.
+    def _verify_file_type(self, file_path: str) -> State | None:
+        """Verify the file is an APK or DEX via libmagic. Returns None if valid, else State."""
         try:
             mime = magic.from_file(file_path, mime=True)
         except Exception:  # noqa: BLE001
             return State(State.Label.OPT_OUT, message="Could not determine file type.")
 
-        if not any(mime.startswith(p) for p in _ACCEPTED_MIME_PREFIXES) and mime != _DEX_MIME:
+        if not any(mime.startswith(p) for p in _ACCEPTED_MIME_PREFIXES):
             return State(State.Label.OPT_OUT, message="Not a valid APK/DEX file.")
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # print(temp_dir)
-            # --- Run JADX ---
-            try:
-                output_dir = self._run_jadx_decompile(file_path, temp_dir)
-            except (RuntimeError, FileNotFoundError) as e:
-                return self.is_malformed(f"JADX failed: {e}")
+        return None
 
-            # --- Locate user source files ---
+    def _decompile_and_extract_sources(
+        self, file_path: str, temp_dir: str
+    ) -> tuple[dict, source_extractor.SourceExtractor] | State:
+        """Run JADX and extract user source files. Returns (java_src_files, extractor) or State on error."""
+        try:
+            output_dir = self._run_jadx_decompile(file_path, temp_dir)
+        except (RuntimeError, FileNotFoundError) as e:
+            return self.is_malformed(f"JADX failed: {e}")
+
+        try:
+            extractor = source_extractor.SourceExtractor(output_dir)
+            java_src_files = extractor.get_user_source_files()
+        except source_extractor.ExtractorError as e:
+            self.logger.warning(f"Source file extraction failed: {e}")
+            java_src_files = {}
+
+        return java_src_files, extractor
+
+    def _upload_source_files(self, java_src_files: dict, extractor: source_extractor.SourceExtractor) -> None:
+        """Combine and upload source files as a single artifact."""
+        if not java_src_files:
+            return
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f_java_src_files_combined:
+            combined_src_filepath = f_java_src_files_combined.name
+            extractor.combine_src_files(java_src_files, f_java_src_files_combined)
+
+        try:
+            with open(combined_src_filepath, "rb") as f:
+                file_count = sum(len(files) for files in java_src_files.values())
+                self.logger.info(f"Adding decompiled Java source file with {file_count} user-code files combined.")
+                self.add_data_file(DataLabel.DECOMPILED_JAVA, {}, f)
+                with open("test_output.log", "wb") as f_out:
+                    f_out.write(f.read())
+        finally:
+            pathlib.Path(combined_src_filepath).unlink()
+
+    def _extract_and_add_features(self, java_src_files: dict) -> None:
+        """Extract code features from source files and add them as features."""
+        for _, files in java_src_files.items():
+            if not files:
+                continue
             try:
-                extractor = source_extractor.SourceExtractor(output_dir)
-                java_src_files = extractor.get_user_source_files()
-            except source_extractor.ExtractorError as e:
-                self.logger.warning(f"Source file extraction failed: {e}")
-                java_src_files = {}
+                features = java_analyser.analyse_files(files)
+                for feat_key, feat_values in features.items():
+                    if feat_values:
+                        self.add_feature_values(feat_key, feat_values)
+                self.logger.info(f"Successfully analysed {len(files)} source files.")
+            except Exception:  # noqa: BLE001
+                self.logger.warning("Failed to analyse Java source files.")
+
+    def execute(self, job: Job):
+        """Run the plugin."""
+        file_path = job.get_data().get_filepath()
+
+        # Pre-check: verify the file is an APK or DEX via libmagic.
+        file_type_error = self._verify_file_type(file_path)
+        if file_type_error:
+            return file_type_error
+
+        with tempfile.TemporaryDirectory(delete=False) as temp_dir:
+            print(temp_dir)
+            # --- Run JADX and extract sources ---
+            result = self._decompile_and_extract_sources(file_path, temp_dir)
+            if isinstance(result, State):
+                return result
+            java_src_files, extractor = result
 
             # --- Combine and upload source files ---
-            if java_src_files:
-                with tempfile.NamedTemporaryFile(mode="w", delete=False) as f_java_src_files_combined:
-                    combined_src_filepath = f_java_src_files_combined.name
-                    extractor.combine_src_files(java_src_files, f_java_src_files_combined)
-
-                with open(combined_src_filepath, "rb") as f:
-                    self.logger.info(
-                        f"Adding decompiled Java source file with {sum(len(files) for files in java_src_files.values())} user-code files combined."
-                    )
-                    self.add_data_file(DataLabel.DECOMPILED_JAVA, {}, f)
-                    # with open("test_output.log", "wb") as f_out:
-                    #     f_out.write(f.read())
-
-                pathlib.Path(combined_src_filepath).unlink()
+            self._upload_source_files(java_src_files, extractor)
 
             # --- Extract features from source files ---
-            for _, files in java_src_files.items():
-                if files:
-                    try:
-                        features = java_analyser.analyse_files(files)
-                        for feat_key, feat_values in features.items():
-                            if feat_values:
-                                self.add_feature_values(feat_key, feat_values)
-                        self.logger.info(f"Successfully analysed {len(files)} source files.")
-                    except Exception:  # noqa: BLE001
-                        self.logger.warning("Failed to analyse Java source files.")
+            self._extract_and_add_features(java_src_files)
 
 
 def main():

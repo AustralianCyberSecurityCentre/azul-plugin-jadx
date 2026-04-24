@@ -44,7 +44,11 @@ class SourceExtractor:
             raise ExtractorError(f"Resources directory not found in JADX output: {self.resources_dir}")
 
         self.manifest_path: pathlib.Path = self._find_manifest()
-        self._root = ElementTree.parse(self.manifest_path).getroot() if self.manifest_path else None
+        try:
+            self._root = ElementTree.parse(self.manifest_path).getroot() if self.manifest_path else None
+        except ElementTree.ParseError as e:
+            raise ExtractorError(f"Failed to parse AndroidManifest.xml: {e}") from e
+
         self.launcher_activity = self._get_launcher_activity() if self._root else ""
         self.package_name = self._get_package_name() if self._root else ""
         self.app_name = self._get_app_name() if self._root else ""
@@ -139,31 +143,56 @@ class SourceExtractor:
             return application.get(f"{{{_ANDROID_NS}}}name", "")
         return ""
 
+    def _should_exclude_directory(self, dirpath: pathlib.Path, base_dirpath: pathlib.Path) -> bool:
+        """Check if a directory should be excluded based on excluded path components."""
+        dirpath_posix = dirpath.as_posix()
+        base_dirpath_posix = base_dirpath.as_posix()
+
+        # Exclude if directory contains excluded segments, unless base_dirpath itself contains them
+        if any(seg in dirpath_posix for seg in _EXCLUDED_PATH_COMPONENTS):
+            return not any(seg in base_dirpath_posix for seg in _EXCLUDED_PATH_COMPONENTS)
+        return False
+
+    def _process_source_file(
+        self, filename: str, dirpath: pathlib.Path, fqn: str, result: dict[str, list[pathlib.Path]]
+    ) -> None:
+        """Process a single source file and add to result or delete if excluded."""
+        if not filename.endswith(".java"):
+            return
+
+        file_path = pathlib.Path(dirpath) / filename
+
+        if filename in _EXCLUDED_FILENAMES:
+            file_path.unlink(missing_ok=True)
+        else:
+            result[fqn] = result.get(fqn, []) + [file_path]
+
+    def _process_directory(
+        self,
+        dirpath: pathlib.Path,
+        filenames: list[str],
+        fqn: str,
+        base_dirpath: pathlib.Path,
+        result: dict[str, list[pathlib.Path]],
+    ) -> None:
+        """Process all files in a directory."""
+        if self._should_exclude_directory(dirpath, base_dirpath):
+            shutil.rmtree(dirpath, ignore_errors=True)
+            return
+
+        for filename in filenames:
+            self._process_source_file(filename, dirpath, fqn, result)
+
     def get_user_source_files(self) -> dict[str, list[pathlib.Path]]:
         """Return all user-defined .java files associated with the application.
 
         Walks the FQN's subtree and collects all .java files except auto-generated ones
-        in ``_EXCLUDED_FILENAMES``.
+        in ``_EXCLUDED_PATH_COMPONENTS``.
         """
         result = {}
         for fqn, base_dirpath in self._fqn_to_path_map.items():
             for dirpath, _, filenames in base_dirpath.walk():
-                # Exclude files in directories that contain any of the segments in _EXCLUDED_PATH_COMPONENTS, unless base_dirpath itself contains any of those segments.
-                if not any(seg in dirpath.as_posix() for seg in _EXCLUDED_PATH_COMPONENTS) or any(
-                    seg in base_dirpath.as_posix() for seg in _EXCLUDED_PATH_COMPONENTS
-                ):
-                    for filename in filenames:
-                        if filename.endswith(".java"):
-                            if filename not in _EXCLUDED_FILENAMES:
-                                file_path = pathlib.Path(dirpath) / filename
-                                result[fqn] = result.get(fqn, []) + [file_path]
-                            else:
-                                (pathlib.Path(dirpath) / filename).unlink(
-                                    missing_ok=True
-                                )  # Remove auto-generated file
-                else:
-                    # Remove entire directory if it contains excluded path segments and is not the base_dirpath
-                    shutil.rmtree(dirpath, ignore_errors=True)
+                self._process_directory(dirpath, filenames, fqn, base_dirpath, result)
 
         for fqn in result:
             result[fqn].sort()  # Sort alphabetically so output matches the pygentree output order

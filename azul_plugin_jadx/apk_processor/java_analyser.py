@@ -23,8 +23,8 @@ _RE_METHOD_DECL = re.compile(
 # Package declaration at the top of a .java file.
 _RE_PACKAGE = re.compile(r"^\s*package\s+([\w.]+)\s*;")
 
-# JADX-generated obfuscated method names (e.g. m9869a, mo9639b, mo858k) -- not useful as features.
-_RE_JADX_METHOD = re.compile(r"^mo?\d{3,}[a-z]+$")
+# Single letter names are common in JADX obfuscation patterns, so ignore method names that are a single letter.
+_RE_SINGLE_LETTER_NAME = re.compile(r"^[a-zA-Z]$")
 
 # Maximum number of values emitted per feature key to prevent unbounded feature lists.
 _MAX_FEATURES_PER_KEY = 5000
@@ -66,28 +66,115 @@ def analyse_files(java_files: list[pathlib.Path]) -> dict[str, list[str]]:
     return {k: list(v)[:_MAX_FEATURES_PER_KEY] for k, v in vars(features).items()}
 
 
-def _analyse_single_file(java_file: pathlib.Path, features: _CodeFeatures) -> None:
-    """Extract features from a single .java file and populate the provided sets."""
-    with open(java_file, encoding="utf-8", errors="replace") as f:
-        lines = f.readlines()
+def _extract_package_features(lines: list[str], features: _CodeFeatures) -> str:
+    """Extract package declaration and add all package levels to features.
 
-    # --- Determine package ---
+    Returns the package name, or empty string if not found.
+    """
     package = ""
     for line in lines:
         if m := _RE_PACKAGE.match(line):
             package = m.group(1)
             break
 
-    # Add all package levels: "com", "com.example", "com.example.myapp".
     if package:
         parts = package.split(".")
         for i in range(1, len(parts) + 1):
             features.packages.add(".".join(parts[:i]))
 
-    # --- Scan for type and method declarations ---
+    return package
+
+
+def _process_type_declaration(
+    raw_name: str,
+    kind: str,
+    package: str,
+    features: _CodeFeatures,
+) -> None:
+    """Process a type declaration (class/enum/interface) and add features."""
+    # Skip single-letter names (obfuscation pattern).
+    if _RE_SINGLE_LETTER_NAME.match(raw_name):
+        return
+
+    for part in raw_name.split("$"):
+        if not part or _RE_SINGLE_LETTER_NAME.match(part):
+            continue
+        features.classes.add(part)
+        if package:
+            features.package_classes.add(f"{package}.{part}")
+
+    if kind == "enum":
+        features.enums.add(raw_name)
+    elif kind == "interface":
+        features.interfaces.add(raw_name)
+
+
+def _process_method_declaration(
+    current_class: str,
+    method_name: str,
+    line: str,
+    match_start: int,
+    package: str,
+    features: _CodeFeatures,
+) -> None:
+    """Process a method declaration and add features."""
+    # Skip Java keywords and JADX obfuscated names.
+    if method_name in _JAVA_KEYWORDS or _RE_SINGLE_LETTER_NAME.match(method_name):
+        return
+
+    # Skip mismatches like `return new Foo(` where the regex captures a class name as method name.
+    pre_method = line[:match_start]
+    if _JAVA_KEYWORDS.intersection(pre_method.split()):
+        return
+
+    features.class_methods.add(f"{current_class}::{method_name}")
+    if package:
+        features.package_class_methods.add(f"{package}.{current_class}::{method_name}")
+        features.package_methods.add(f"{package}::{method_name}")
+
+
+def _should_skip_line(stripped: str) -> bool:
+    """Check if a line should be skipped (comments, decorators, empty)."""
+    if stripped.startswith("/*") or stripped.startswith("*") or stripped.startswith("//"):
+        return True
+    if stripped.startswith("@") or not stripped:
+        return True
+    return False
+
+
+def _process_line_for_declarations(
+    line: str,
+    package: str,
+    class_stack: list[tuple[str, int]],
+    features: _CodeFeatures,
+    brace_depth: int,
+) -> None:
+    """Process a line for type or method declarations."""
+    # Handle type declarations.
+    tm = _RE_TYPE_DECL.match(line)
+    if tm:
+        kind = tm.group(1)
+        raw_name = tm.group(2)
+        _process_type_declaration(raw_name, kind, package, features)
+        class_stack.append((raw_name, brace_depth))
+        return
+
+    # Handle method declarations.
+    if class_stack and (current_class := class_stack[-1][0]):
+        mm = _RE_METHOD_DECL.match(line)
+        if mm:
+            method_name = mm.group(1)
+            _process_method_declaration(current_class, method_name, line, mm.start(1), package, features)
+
+
+def _scan_file_for_features(
+    lines: list[str],
+    package: str,
+    features: _CodeFeatures,
+) -> None:
+    """Scan file lines for type and method declarations and extract features."""
     brace_depth = 0
-    class_stack: list[tuple[str | None, int]] = []  # (class_name, entry_depth); None = renamed
-    pending_jadx_rename = False  # whether a JADX rename comment precedes this line
+    class_stack: list[tuple[str, int]] = []
 
     for line in lines:
         brace_depth += line.count("{") - line.count("}")
@@ -96,55 +183,19 @@ def _analyse_single_file(java_file: pathlib.Path, features: _CodeFeatures) -> No
 
         stripped = line.strip()
 
-        # JADX rename / informational comments.
-        if stripped.startswith("/*") or stripped.startswith("*"):
-            if "JADX INFO: renamed from:" in stripped:
-                pending_jadx_rename = True
-            continue
-        if stripped.startswith("//") or stripped.startswith("@") or not stripped:
+        if _should_skip_line(stripped):
             continue
 
-        # Type declaration?
-        tm = _RE_TYPE_DECL.match(line)
-        if tm:
-            is_renamed = pending_jadx_rename
-            pending_jadx_rename = False
+        _process_line_for_declarations(line, package, class_stack, features, brace_depth)
 
-            kind = tm.group(1)
-            raw_name = tm.group(2)
 
-            if not is_renamed:
-                for part in raw_name.split("$"):
-                    if not part:
-                        continue
-                    features.classes.add(part)
-                    if package:
-                        features.package_classes.add(f"{package}.{part}")
+def _analyse_single_file(java_file: pathlib.Path, features: _CodeFeatures) -> None:
+    """Extract features from a single .java file and populate the provided sets."""
+    with open(java_file, encoding="utf-8", errors="replace") as f:
+        lines = f.readlines()
 
-                if kind == "enum":
-                    features.enums.add(raw_name)
-                elif kind == "interface":
-                    features.interfaces.add(raw_name)
+    # Extract package and add package levels.
+    package = _extract_package_features(lines, features)
 
-            class_stack.append((raw_name if not is_renamed else None, brace_depth))
-            continue
-
-        pending_jadx_rename = False
-
-        # Method declaration?
-        if class_stack and (current_class := class_stack[-1][0]):
-            mm = _RE_METHOD_DECL.match(line)
-            if mm:
-                method_name = mm.group(1)
-                # Skip Java keywords and JADX obfuscated names.
-                if method_name in _JAVA_KEYWORDS or _RE_JADX_METHOD.match(method_name):
-                    continue
-                # Skip mismatches like `return new Foo(` where the regex captures
-                # a class name as a method name.
-                pre_method = line[: mm.start(1)]
-                if _JAVA_KEYWORDS.intersection(pre_method.split()):
-                    continue
-                features.class_methods.add(f"{current_class}::{method_name}")
-                if package:
-                    features.package_class_methods.add(f"{package}.{current_class}::{method_name}")
-                    features.package_methods.add(f"{package}::{method_name}")
+    # Scan for type and method declarations.
+    _scan_file_for_features(lines, package, features)
