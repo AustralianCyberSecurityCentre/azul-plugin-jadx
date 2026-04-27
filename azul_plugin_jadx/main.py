@@ -92,6 +92,7 @@ class AzulPluginJadx(BinaryPlugin):
             [jadx_bin, "--output-dir", output_dir, str(file_path_obj)],
             capture_output=True,
             text=True,
+            check=False,
             env={
                 "JADX_CACHE_DIR": tempfile.gettempdir(),
                 "JADX_CONFIG_DIR": tempfile.gettempdir(),
@@ -154,8 +155,6 @@ class AzulPluginJadx(BinaryPlugin):
                 file_count = sum(len(files) for files in java_src_files.values())
                 self.logger.info(f"Adding decompiled Java source file with {file_count} user-code files combined.")
                 self.add_data_file(DataLabel.DECOMPILED_JAVA, {}, f)
-                with open("test_output.log", "wb") as f_out:
-                    f_out.write(f.read())
         finally:
             pathlib.Path(combined_src_filepath).unlink()
 
@@ -183,7 +182,6 @@ class AzulPluginJadx(BinaryPlugin):
             return file_type_error
 
         with tempfile.TemporaryDirectory(delete=False) as temp_dir:
-            print(temp_dir)
             # --- Run JADX and extract sources ---
             result = self._decompile_and_extract_sources(file_path, temp_dir)
             if isinstance(result, State):
