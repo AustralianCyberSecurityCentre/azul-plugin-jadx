@@ -18,7 +18,7 @@ from azul_runner import (
     cmdline_run,
 )
 
-from azul_plugin_jadx.apk_processor import java_analyser, source_extractor
+from azul_plugin_jadx.apk_processor import java_analyzer, source_extractor
 
 # Accepted MIME types for the libmagic pre-check.
 # APKs are zip files so libmagic often reports application/zip instead of
@@ -97,7 +97,7 @@ class AzulPluginJadx(BinaryPlugin):
                 "JADX_CACHE_DIR": tempfile.gettempdir(),
                 "JADX_CONFIG_DIR": tempfile.gettempdir(),
                 **os.environ,
-            },  # Set HOME to temp to avoid read-only filesystem issues
+            },
         )
 
         if result.returncode != 0 and result.returncode not in (1, 3):
@@ -136,7 +136,7 @@ class AzulPluginJadx(BinaryPlugin):
             extractor = source_extractor.SourceExtractor(output_dir)
             java_src_files = extractor.get_user_source_files()
         except source_extractor.ExtractorError as e:
-            return State(State.Label.COMPLETED_EMPTY, message=f"Source file extraction failed: {e}")
+            return State(State.Label.COMPLETED_EMPTY, message=f"No source files found: {e}")
 
         return java_src_files, extractor
 
@@ -163,13 +163,13 @@ class AzulPluginJadx(BinaryPlugin):
             if not files:
                 continue
             try:
-                features = java_analyser.analyse_files(files)
+                features = java_analyzer.analyze_files(files)
                 for feat_key, feat_values in features.items():
                     if feat_values:
                         self.add_feature_values(feat_key, feat_values)
-                self.logger.info(f"Successfully analysed {len(files)} source files.")
+                self.logger.info(f"Successfully analyzed {len(files)} source files.")
             except Exception:  # noqa: BLE001
-                self.logger.warning("Failed to analyse Java source files.")
+                self.logger.warning("Failed to analyze Java source files.")
 
     def execute(self, job: Job):
         """Run the plugin."""
@@ -188,10 +188,11 @@ class AzulPluginJadx(BinaryPlugin):
             java_src_files, extractor = result
 
             # --- Combine and upload source files ---
-            self._upload_source_files(java_src_files, extractor)
+            if java_src_files:
+                self._upload_source_files(java_src_files, extractor)
 
-            # --- Extract features from source files ---
-            self._extract_and_add_features(java_src_files)
+                # --- Extract features from source files ---
+                self._extract_and_add_features(java_src_files)
 
 
 def main():

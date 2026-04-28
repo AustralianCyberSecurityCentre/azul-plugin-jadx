@@ -37,7 +37,7 @@ $ azul-plugin-jadx malware.apk
 level=INFO time=2026-04-01 12:00:00+0000 name=azul_runner.plugin custom startup options:
 level=INFO time=2026-04-01 12:00:00+0000 name=azul_runner.plugin max_file_size       : 104857600
 level=INFO time=2026-04-01 12:00:00+0000 name=azul_runner.coordinator received plugin=AzulPluginJadx type=Android APK size=1234567 id=abc123...
-level=INFO time=2026-04-01 12:00:05+0000 name=azul_plugin_jadx Successfully analysed 116 source files.
+level=INFO time=2026-04-01 12:00:05+0000 name=azul_plugin_jadx Successfully analyzed 116 source files.
 level=INFO time=2026-04-01 12:00:05+0000 name=azul_runner.coordinator finish plugin=AzulPluginJadx mp=None state=OK type=Android APK size=1234567 id=abc123...
 level=INFO time=2026-04-01 12:00:05+0000 name=azul_runner.main Processing complete
 ----- AzulPluginJadx results -----

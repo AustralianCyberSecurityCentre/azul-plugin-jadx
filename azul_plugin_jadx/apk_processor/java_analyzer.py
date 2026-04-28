@@ -26,12 +26,9 @@ _RE_PACKAGE = re.compile(r"^\s*package\s+([\w.]+)\s*;")
 # Single letter names are common in JADX obfuscation patterns, so ignore method names that are a single letter.
 _RE_SINGLE_LETTER_NAME = re.compile(r"^[a-zA-Z]$")
 
-# Maximum number of values emitted per feature key to prevent unbounded feature lists.
-_MAX_FEATURES_PER_KEY = 5000
-
 # Java keywords the method regex may accidentally match.
 # Includes "synchronized" because `synchronized (lock) {` looks like a method decl.
-_JAVA_KEYWORDS = frozenset({"if", "for", "while", "switch", "return", "new", "throw", "synchronized"})
+_JAVA_KEYWORDS = {"if", "for", "while", "switch", "return", "new", "throw", "synchronized"}
 
 
 @dataclass
@@ -48,22 +45,20 @@ class _CodeFeatures:
     interfaces: set[str] = field(default_factory=set)
 
 
-def analyse_files(java_files: list[pathlib.Path]) -> dict[str, list[str]]:
+def analyze_files(java_files: list[pathlib.Path]) -> dict[str, list[str]]:
     """Extract code features from JADX-decompiled .java files.
 
-    Returns a dict mapping feature name to a deduplicated list of values,
-    capped at _MAX_FEATURES_PER_KEY per key.
+    Returns a dict mapping feature name to a deduplicated list of values.
     """
     features = _CodeFeatures()
 
     for java_file in java_files:
         try:
-            _analyse_single_file(java_file, features)
+            _analyze_single_file(java_file, features)
         except Exception:  # noqa: BLE001,S110
-            # Tolerate malformed or unreadable files -- continue with others.
             pass  # noqa: S110
 
-    return {k: list(v)[:_MAX_FEATURES_PER_KEY] for k, v in vars(features).items()}
+    return {k: list(v) for k, v in vars(features).items()}
 
 
 def _extract_package_features(lines: list[str], features: _CodeFeatures) -> str:
@@ -189,7 +184,7 @@ def _scan_file_for_features(
         _process_line_for_declarations(line, package, class_stack, features, brace_depth)
 
 
-def _analyse_single_file(java_file: pathlib.Path, features: _CodeFeatures) -> None:
+def _analyze_single_file(java_file: pathlib.Path, features: _CodeFeatures) -> None:
     """Extract features from a single .java file and populate the provided sets."""
     with open(java_file, encoding="utf-8", errors="replace") as f:
         lines = f.readlines()

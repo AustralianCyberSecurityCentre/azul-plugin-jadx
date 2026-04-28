@@ -200,3 +200,18 @@ class TestExecute(test_template.TestPlugin):
                 ],
             },
         )
+
+    def test_apk_empty_results(self):
+        """If an APK has no analyzable Java code, it should complete but return no results (COMPLETED_EMPTY)."""
+        data = self.load_test_file_bytes(
+            "c52408454d39fcaa1cb61cff3276b6ae7078244d3c67ff213b87bfb1532968c3",
+            "APK with no analyzable Java code.",
+        )
+        result = self.do_execution(
+            data_in=[("content", data)],
+            verify_input_content=False,
+        )
+        self.assertEqual(result.state, State(State.Label.COMPLETED_EMPTY))
+
+        # Verify no events/results were generated
+        self.assertEqual(len(result.events), 0)
