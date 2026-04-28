@@ -180,7 +180,7 @@ class AzulPluginJadx(BinaryPlugin):
         if file_type_error:
             return file_type_error
 
-        with tempfile.TemporaryDirectory(delete=False) as temp_dir:
+        with tempfile.TemporaryDirectory() as temp_dir:
             # --- Run JADX and extract sources ---
             result = self._decompile_and_extract_sources(file_path, temp_dir)
             if isinstance(result, State):
