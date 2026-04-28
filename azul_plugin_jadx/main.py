@@ -35,7 +35,7 @@ _ACCEPTED_MIME_PREFIXES = (
 class AzulPluginJadx(BinaryPlugin):
     """Decompiles Android APK/DEX files using JADX, extracts user-defined source files, and derives code features from them."""
 
-    VERSION = "2026.04.24"
+    VERSION = "2026.04.28"
     SETTINGS = add_settings(
         filter_max_content_size=(int, 100 * 1024 * 1024),
         filter_data_types={
@@ -136,8 +136,7 @@ class AzulPluginJadx(BinaryPlugin):
             extractor = source_extractor.SourceExtractor(output_dir)
             java_src_files = extractor.get_user_source_files()
         except source_extractor.ExtractorError as e:
-            self.logger.warning(f"Source file extraction failed: {e}")
-            java_src_files = {}
+            return State(State.Label.COMPLETED_EMPTY, message=f"Source file extraction failed: {e}")
 
         return java_src_files, extractor
 
