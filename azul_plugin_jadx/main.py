@@ -35,7 +35,7 @@ _ACCEPTED_MIME_PREFIXES = (
 class AzulPluginJadx(BinaryPlugin):
     """Decompiles Android APK/DEX files using JADX, extracts user-defined source files, and derives code features from them."""
 
-    VERSION = "2026.04.28"
+    VERSION = "2026.04.29"
     SETTINGS = add_settings(
         filter_max_content_size=(int, 100 * 1024 * 1024),
         filter_data_types={
@@ -112,13 +112,19 @@ class AzulPluginJadx(BinaryPlugin):
         return output_dir
 
     def _verify_file_type(self, file_path: str) -> State | None:
-        """Verify the file is an APK or DEX via libmagic. Returns None if valid, else State."""
+        """Verify the file is an APK or DEX via libmagic. Returns None if valid, else State.
+
+        Returns:
+            State: OPT_OUT if file cannot be typed or is not a valid APK/DEX/JAR/ZIP file.
+        """
         try:
             mime = magic.from_file(file_path, mime=True)
-        except Exception:  # noqa: BLE001
+        except (OSError, AttributeError, magic.MagicException) as e:
+            self.logger.warning(f"Failed to determine MIME type for '{file_path}': {e}")
             return State(State.Label.OPT_OUT, message="Could not determine file type.")
 
         if not any(mime.startswith(p) for p in _ACCEPTED_MIME_PREFIXES):
+            self.logger.debug(f"File '{file_path}' has MIME type '{mime}', which is not in accepted list.")
             return State(State.Label.OPT_OUT, message="Not a valid APK/DEX file.")
 
         return None
@@ -158,8 +164,12 @@ class AzulPluginJadx(BinaryPlugin):
             pathlib.Path(combined_src_filepath).unlink()
 
     def _extract_and_add_features(self, java_src_files: dict) -> None:
-        """Extract code features from source files and add them as features."""
-        for _, files in java_src_files.items():
+        """Extract code features from source files and add them as features.
+
+        Iterates through source file groups and extracts method/class/package features.
+        Logs specific errors per group; silently skips empty groups.
+        """
+        for fqn, files in java_src_files.items():
             if not files:
                 continue
             try:
@@ -167,9 +177,9 @@ class AzulPluginJadx(BinaryPlugin):
                 for feat_key, feat_values in features.items():
                     if feat_values:
                         self.add_feature_values(feat_key, feat_values)
-                self.logger.info(f"Successfully analyzed {len(files)} source files.")
-            except Exception:  # noqa: BLE001
-                self.logger.warning("Failed to analyze Java source files.")
+                self.logger.info(f"Successfully analyzed {len(files)} source files for FQN '{fqn}'.")
+            except (OSError, UnicodeDecodeError, ValueError) as e:
+                self.logger.warning(f"Failed to analyze Java source files for FQN '{fqn}': {e}")
 
     def execute(self, job: Job):
         """Run the plugin."""

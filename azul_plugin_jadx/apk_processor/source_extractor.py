@@ -7,6 +7,21 @@ import pygentree
 from defusedxml import ElementTree
 
 _EXCLUDED_FILENAMES = ["R.java", "BuildConfig.java"]
+# Excluded path components for third-party/system libraries.
+# When traversing source directories, any path containing these segments will be excluded, unless it is part of a path expected to contain user code.
+# Rationale:
+#   - androidx: Android Jetpack libraries (official Google Android extensions)
+#   - com/google: Google libraries (Firebase, Google Play Services, etc.)
+#   - com/bumptech: Glide image loading library
+#   - com/airbnb: Airbnb Lottie animations library
+#   - com/facebook: Facebook SDK libraries
+#   - kotlin/kotlinx: Kotlin standard library and extensions
+#   - org/jetbrains: JetBrains libraries (Kotlin, IntelliJ)
+#   - dbuild: Build configuration (not user code)
+#   - android/support: Legacy Android Support library (pre-Jetpack)
+#   - android/arch: Android Architecture Components library
+#   - android/databinding: Android Data Binding framework
+#   - android/viewbinding: Android View Binding framework
 _EXCLUDED_PATH_COMPONENTS = [
     "androidx",
     "com/google",
@@ -32,7 +47,17 @@ class ExtractorError(Exception):
 class SourceExtractor:
     """Extracts user-authored Java source files from JADX output, excluding auto-generated and third-party code."""
 
-    def __init__(self, jadx_output_dir: str):
+    def __init__(self, jadx_output_dir: str) -> None:
+        """Initialize extractor with JADX output directory.
+
+        Validates directory structure, parses AndroidManifest.xml, and builds FQN-to-path mapping.
+
+        Args:
+            jadx_output_dir: Path to JADX output directory containing 'sources/' and 'resources/'.
+
+        Raises:
+            ExtractorError: If required directories missing, manifest unparseable, or no valid FQNs found.
+        """
         self.output_dir: pathlib.Path = pathlib.Path(jadx_output_dir)
 
         self.source_dir: pathlib.Path = self.output_dir / "sources"
@@ -49,15 +74,34 @@ class SourceExtractor:
         except ElementTree.ParseError as e:
             raise ExtractorError(f"Failed to parse AndroidManifest.xml: {e}") from e
 
-        self.launcher_activity = self._get_launcher_activity() if self._root else ""
-        self.package_name = self._get_package_name() if self._root else ""
-        self.app_name = self._get_app_name() if self._root else ""
-        self._fqn_to_path_map = self._generate_fqn_to_path_map()
+        self.launcher_activity: str = self._get_launcher_activity() if self._root else ""
+        self.package_name: str = self._get_package_name() if self._root else ""
+        self.app_name: str = self._get_app_name() if self._root else ""
+
+        # Validate that at least one FQN was extracted; otherwise manifest is unusable.
+        if self._root and not (self.launcher_activity or self.package_name or self.app_name):
+            raise ExtractorError(
+                "AndroidManifest.xml found but no usable FQNs extracted (package, launcher activity, or app name)."
+            )
+
+        self._fqn_to_path_map: dict[str, pathlib.Path] = self._generate_fqn_to_path_map()
 
     def _generate_fqn_to_path_map(self) -> dict[str, pathlib.Path]:
-        """Generate a mapping of fully qualified names to their corresponding directory paths in the sources directory.
+        """Generate mapping of fully qualified names (FQNs) to source directory paths.
 
-        De-duplicates FQNs: if one FQN is a parent of another, the longer (more specific) FQN is removed.
+        Three-step process:
+        1. Collect FQNs: launcher activity, package name, app name from manifest.
+        2. Resolve to directories: For each FQN, find deepest matching directory in sources/.
+        3. Deduplicate: If one FQN's path is parent of another's, remove the child (more specific) FQN.
+
+        Example:
+            If launcher_activity="com.example.MainActivity" maps to sources/com/example/
+            and package_name="com.example" also maps to sources/com/example/,
+            keep only the more general (package_name) mapping.
+
+        Returns:
+            Dict mapping FQN string -> Path object for that FQN's directory.
+            Empty dict if no valid directories found.
         """
         result: dict[str, pathlib.Path] = {}
         for fqn in [self.launcher_activity, self.package_name, self.app_name]:
@@ -66,20 +110,22 @@ class SourceExtractor:
                 if directory:
                     result[fqn] = directory
 
-        # De-duplicate: if one FQN is a parent of another, remove the longer (more specific) FQN
+        # Deduplicate: if parent_fqn's path is ancestor of child_fqn's path, remove child_fqn.
+        # This keeps broader FQN mappings and discards more specific ones.
         fqns_to_remove: set[str] = set()
-        fqn_list: list[str] = list(result.keys())
-        for i in range(len(fqn_list)):
-            for j in range(i + 1, len(fqn_list)):
-                fqn_a = fqn_list[i]
-                fqn_b = fqn_list[j]
+        fqn_keys: list[str] = list(result.keys())
+        for i in range(len(fqn_keys)):
+            for j in range(i + 1, len(fqn_keys)):
+                parent_fqn = fqn_keys[i]
+                child_fqn = fqn_keys[j]
 
-                path_a = result[fqn_a]
-                path_b = result[fqn_b]
-                if path_b.is_relative_to(path_a):
-                    fqns_to_remove.add(fqn_b)
-                elif path_a.is_relative_to(path_b):
-                    fqns_to_remove.add(fqn_a)
+                parent_path = result[parent_fqn]
+                child_path = result[child_fqn]
+                # Check if one path is relative to (contained within) the other.
+                if child_path.is_relative_to(parent_path):
+                    fqns_to_remove.add(child_fqn)  # Remove more specific FQN
+                elif parent_path.is_relative_to(child_path):
+                    fqns_to_remove.add(parent_fqn)  # Remove more specific FQN
 
         for fqn in fqns_to_remove:
             del result[fqn]
@@ -87,7 +133,17 @@ class SourceExtractor:
         return result
 
     def _get_deepest_valid_directory_from_fqn(self, fqn: str) -> pathlib.Path | None:
-        """Given a fqn name and the sources directory, return the deepest valid directory that corresponds to it."""
+        """Find deepest valid directory in sources/ that corresponds to an FQN.
+
+        Given FQN "com.example.foo", walks sources/com/example/foo and returns the
+        deepest directory that exists. Returns None if no directory found.
+
+        Args:
+            fqn: Fully qualified name like "com.example.MainActivity" or "com.example.lib".
+
+        Returns:
+            Deepest valid Path in sources/ tree, or None if not found.
+        """
         components = fqn.split(".")
         fqn_dir = self.source_dir
 
@@ -101,7 +157,17 @@ class SourceExtractor:
         return fqn_dir
 
     def _find_manifest(self) -> pathlib.Path:
-        """Walk resources_dir to find AndroidManifest.xml, returning the shallowest match so split-APK config manifests don't shadow the primary app manifest."""
+        """Find AndroidManifest.xml in resources directory.
+
+        Walks resources_dir to find AndroidManifest.xml, returning the shallowest match.
+        (Shallowest prevents split-APK config manifests from shadowing the primary app manifest.)
+
+        Returns:
+            Path to AndroidManifest.xml file.
+
+        Raises:
+            ExtractorError: If no AndroidManifest.xml found in resources/.
+        """
         if not self.resources_dir.is_dir():
             raise ExtractorError(f"Resources directory not found in JADX output: {self.resources_dir}")
 
@@ -113,8 +179,15 @@ class SourceExtractor:
             raise ExtractorError(f"AndroidManifest.xml not found in resources directory: {self.resources_dir}")
         return min(candidates, key=lambda p: len(p.parts))
 
-    def _get_launcher_activity(self):
-        """Extract the launcher activity FQN from the manifest, if specified."""
+    def _get_launcher_activity(self) -> str:
+        """Extract launcher activity FQN from manifest.
+
+        Looks for activity with MAIN action + LAUNCHER category intent-filter.
+        Handles Android XML namespaces correctly via XPath.
+
+        Returns:
+            Fully qualified activity name (e.g., "com.example.MainActivity"), or empty string if not found.
+        """
         name = ""
         # Android XML uses namespaces; we must extract them
         ns = {"android": _ANDROID_NS}
@@ -133,18 +206,39 @@ class SourceExtractor:
         return name
 
     def _get_package_name(self) -> str:
-        """Extract the main application FQN from the manifest."""
+        """Extract main application package name from manifest.
+
+        Returns:
+            Package attribute from <manifest> element (e.g., "com.example.app"), or empty string.
+        """
         return self._root.get("package", "")
 
     def _get_app_name(self) -> str:
-        """Extract the application name FQN from the manifest, if specified."""
+        """Extract application component name from manifest.
+
+        Gets android:name attribute from <application> element.
+
+        Returns:
+            Application component FQN (e.g., "com.example.MyApplication"), or empty string if not found.
+        """
         application = self._root.find("application")
         if application is not None:
             return application.get(f"{{{_ANDROID_NS}}}name", "")
         return ""
 
     def _should_exclude_directory(self, dirpath: pathlib.Path, base_dirpath: pathlib.Path) -> bool:
-        """Check if a directory should be excluded based on excluded path components."""
+        """Check if a directory should be excluded based on excluded path components.
+
+        Marks directory for exclusion if its path contains excluded library patterns
+        (androidx, com/google, kotlin, etc.) UNLESS the base path also contains them.
+
+        Args:
+            dirpath: Directory path being checked.
+            base_dirpath: Base FQN directory; if it contains excluded component, don't exclude subdirs.
+
+        Returns:
+            True if directory should be excluded and deleted, False otherwise.
+        """
         dirpath_posix = dirpath.as_posix()
         base_dirpath_posix = base_dirpath.as_posix()
 
@@ -156,7 +250,17 @@ class SourceExtractor:
     def _process_source_file(
         self, filename: str, dirpath: pathlib.Path, fqn: str, result: dict[str, list[pathlib.Path]]
     ) -> None:
-        """Process a single source file and add to result or delete if excluded."""
+        """Process a single source file and add to result or delete if excluded.
+
+        Filters out auto-generated files (R.java, BuildConfig.java) and non-.java files.
+        Adds valid .java files to result dict under their FQN.
+
+        Args:
+            filename: Name of file being examined.
+            dirpath: Directory containing the file.
+            fqn: Fully qualified name this file belongs to.
+            result: Accumulator dict mapping FQN -> list[Path] of .java files.
+        """
         if not filename.endswith(".java"):
             return
 
@@ -175,7 +279,18 @@ class SourceExtractor:
         base_dirpath: pathlib.Path,
         result: dict[str, list[pathlib.Path]],
     ) -> None:
-        """Process all files in a directory."""
+        """Process all files in a directory.
+
+        Checks if directory should be excluded (e.g., third-party library paths).
+        If excluded, deletes it and returns early. Otherwise, processes each file.
+
+        Args:
+            dirpath: Current directory path.
+            filenames: List of filenames in this directory.
+            fqn: Fully qualified name for this directory.
+            base_dirpath: Base FQN directory (for exclusion filtering context).
+            result: Accumulator dict mapping FQN -> list[Path] of .java files.
+        """
         if self._should_exclude_directory(dirpath, base_dirpath):
             shutil.rmtree(dirpath, ignore_errors=True)
             return
@@ -186,8 +301,14 @@ class SourceExtractor:
     def get_user_source_files(self) -> dict[str, list[pathlib.Path]]:
         """Return all user-defined .java files associated with the application.
 
-        Walks the FQN's subtree and collects all .java files except auto-generated ones
-        in ``_EXCLUDED_PATH_COMPONENTS``.
+        Walks each FQN's directory subtree in sources/, collecting .java files and excluding:
+        - Auto-generated files: R.java, BuildConfig.java
+        - Third-party libraries: paths matching _EXCLUDED_PATH_COMPONENTS
+        - Non-.java files
+
+        Returns:
+            Dict mapping FQN string -> sorted list[Path] of user .java files.
+            Example: {"com.example": [Path("sources/com/example/MainActivity.java"), ...]}
         """
         result = {}
         for fqn, base_dirpath in self._fqn_to_path_map.items():
@@ -200,7 +321,15 @@ class SourceExtractor:
         return result
 
     def combine_src_files(self, java_src_files: dict[str, list[pathlib.Path]], output_file) -> None:
-        """Combine multiple .java source files into a single output file, with separators and a directory tree."""
+        """Combine multiple .java source files into a single output file.
+
+        Writes header comments with manifest info, directory trees, and concatenated
+        source code. Output is readable and annotated with file paths.
+
+        Args:
+            java_src_files: Dict mapping FQN -> list[Path] of .java files.
+            output_file: Open file object to write combined output to (should support .write()).
+        """
         output_file.write(f"\n// NOTE: {_EXCLUDED_FILENAMES} files and third-party code are excluded from output.\n")
 
         if self.package_name:
