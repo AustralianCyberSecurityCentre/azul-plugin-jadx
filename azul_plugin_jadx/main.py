@@ -105,9 +105,11 @@ class AzulPluginJadx(BinaryPlugin):
             raise RuntimeError(result.stderr)
 
         sources_dir = pathlib.Path(output_dir) / "sources"
-        if not sources_dir.is_dir():
-            self.logger.error(f"JADX did not produce a sources directory at: {sources_dir}")
-            raise RuntimeError(f"JADX did not produce a sources directory at: {sources_dir}")
+        resources_dir = pathlib.Path(output_dir) / "resources"
+        if not sources_dir.is_dir() or not resources_dir.is_dir():
+            msg = f"JADX did not produce sources/resources directories (file may be malformed).\nstdout: {result.stdout}\nstderr: {result.stderr}"
+            self.logger.error(msg)
+            raise RuntimeError(msg)
 
         return output_dir
 
