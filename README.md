@@ -10,22 +10,28 @@ Decompiles Android APK/DEX files using [JADX](https://github.com/skylot/jadx).
 sudo apt install default-jre
 ```
 
-### Installing JADX (if `hatch_build.py` fails to install it)
+### Installing JADX
 
 JADX is the Android decompiler used by this plugin.
 https://github.com/skylot/jadx
 
-Download the latest release ZIP from https://github.com/skylot/jadx/releases and extract to `/usr/local/lib/jadx/`:
 
 ```bash
-curl -L https://github.com/skylot/jadx/releases/download/v1.5.5/jadx-1.5.5.zip -o jadx.zip
-sudo mkdir -p /usr/local/lib/jadx
-sudo unzip jadx.zip -d /usr/local/lib/jadx
-sudo chmod +x /usr/local/lib/jadx/bin/jadx
+# Download JADX, make it executable, and put it on PATH
+sudo scripts/install_jadx.sh
 ```
 
+
+### Development Installation 
+
+To install azul-plugin-jadx for development run the command (from the root directory of this project):
 ```
-pip install azul-plugin-jadx
+uv sync
+```
+
+Then enter the virtual environment:
+```
+source .venv/bin/activate
 ```
 
 ## Usage

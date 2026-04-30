@@ -1,2 +1,4 @@
-libmagic-dev
+curl
 default-jre
+libmagic-dev
+unzip

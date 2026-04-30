@@ -70,9 +70,6 @@ version_scheme = "only-version"
 [tool.hatch.version.fallback]
 version = "0.0.0"
 
-[tool.hatch.build.hooks.custom]
-path = "hatch_build.py"
-
 [dependency-groups]
 dev = [
     "azul-runner[test-utils]>=9.0.38",
@@ -80,6 +77,7 @@ dev = [
     "pytest>=9.0.2",
     "ruff>=0.15.8",
     "tox>=4.34.1",
+    "tox-uv>=1.0",
     "ty>=0.0.27",
 ]
 

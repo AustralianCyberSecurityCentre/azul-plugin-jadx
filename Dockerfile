@@ -63,11 +63,10 @@ RUN apt-get update && \
 ARG UID=21000
 ARG GID=21000
 RUN groupadd -g $GID azul && useradd --create-home --shell /bin/bash -u $UID -g $GID azul
+COPY scripts/install_jadx.sh /tmp/src
+RUN /tmp/src/install_jadx.sh
 USER azul
 COPY --from=builder /usr/local /usr/local
-USER root
-RUN ln -sf /usr/local/lib/jadx/bin/jadx /usr/local/bin/jadx
-USER azul
 
 # run tests during build to verify dockerfile has all requirements
 FROM base AS tester
