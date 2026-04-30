@@ -42,10 +42,8 @@ class AzulPluginJadx(BinaryPlugin):
             "content": [
                 "android/apk",
                 "android/dex",
-                # Some file managers report these with the executable/ prefix
                 "executable/android/apk",
                 "executable/android/dex",
-                # XAPK bundles and many APKs that libmagic/file-managers label as generic zip
                 "archive/zip",
             ]
         },
@@ -137,7 +135,9 @@ class AzulPluginJadx(BinaryPlugin):
         """Run JADX and extract user source files. Returns (java_src_files, extractor) or State on error."""
         try:
             output_dir = self._run_jadx_decompile(file_path, temp_dir)
-        except (RuntimeError, FileNotFoundError) as e:
+        except FileNotFoundError as e:
+            return State(State.Label.ERROR_EXCEPTION, message=str(e))
+        except RuntimeError as e:
             return self.is_malformed(f"JADX failed: {e}")
 
         try:
@@ -183,7 +183,7 @@ class AzulPluginJadx(BinaryPlugin):
             except (OSError, UnicodeDecodeError, ValueError) as e:
                 self.logger.warning(f"Failed to analyze Java source files for FQN '{fqn}': {e}")
 
-    def execute(self, job: Job):
+    def execute(self, job: Job) -> State | None:
         """Run the plugin."""
         file_path = job.get_data().get_filepath()
 
@@ -207,6 +207,6 @@ class AzulPluginJadx(BinaryPlugin):
                 self._extract_and_add_features(java_src_files)
 
 
-def main():
+def main() -> None:
     """Entry point for the azul-plugin-jadx CLI."""
     cmdline_run(plugin=AzulPluginJadx)

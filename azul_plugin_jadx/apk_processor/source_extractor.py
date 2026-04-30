@@ -2,6 +2,7 @@
 
 import pathlib
 import shutil
+import tempfile
 
 import pygentree
 from defusedxml import ElementTree
@@ -320,7 +321,9 @@ class SourceExtractor:
 
         return result
 
-    def combine_src_files(self, java_src_files: dict[str, list[pathlib.Path]], output_file) -> None:
+    def combine_src_files(
+        self, java_src_files: dict[str, list[pathlib.Path]], output_file: tempfile._TemporaryFileWrapper
+    ) -> None:
         """Combine multiple .java source files into a single output file.
 
         Writes header comments with manifest info, directory trees, and concatenated

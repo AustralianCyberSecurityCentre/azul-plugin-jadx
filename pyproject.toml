@@ -133,6 +133,8 @@ select = [
   "D",
   # bandit
   "S",
+  # type hinting
+  "ANN",
 ]
 ignore = ["B008","C901","D104","D107","E203"]
 exclude = [
