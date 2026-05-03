@@ -1,0 +1,6 @@
+.dockerignore
+Dockerfile
+Makefile
+.devcontainer/
+.pre-commit-config.yaml
+.venv
