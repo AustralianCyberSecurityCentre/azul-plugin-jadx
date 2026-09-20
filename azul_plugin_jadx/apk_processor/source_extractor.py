@@ -192,7 +192,7 @@ class SourceExtractor:
         name = ""
         # Android XML uses namespaces; we must extract them
         ns = {"android": _ANDROID_NS}
-        for activity in self._root.findall(".//activity"):
+        for activity in self._root.findall(".//activity"):  # ty: ignore[unresolved-attribute]
             for intent_filter in activity.findall("intent-filter"):
                 has_main = intent_filter.find("action[@android:name='android.intent.action.MAIN']", ns) is not None
                 has_launcher = (
@@ -212,7 +212,7 @@ class SourceExtractor:
         Returns:
             Package attribute from <manifest> element (e.g., "com.example.app"), or empty string.
         """
-        return self._root.get("package", "")
+        return self._root.get("package", "")  # ty: ignore[unresolved-attribute]
 
     def _get_app_name(self) -> str:
         """Extract application component name from manifest.
@@ -222,7 +222,7 @@ class SourceExtractor:
         Returns:
             Application component FQN (e.g., "com.example.MyApplication"), or empty string if not found.
         """
-        application = self._root.find("application")
+        application = self._root.find("application")  # ty: ignore[unresolved-attribute]
         if application is not None:
             return application.get(f"{{{_ANDROID_NS}}}name", "")
         return ""
