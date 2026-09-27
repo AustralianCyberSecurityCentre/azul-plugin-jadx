@@ -2,7 +2,7 @@ ARG REGISTRY="docker.io/library"
 ARG BUILD_IMAGE='python'
 ARG BUILD_TAG='3.12-trixie@sha256:4d1caded1f729ae443eb803f26ffde7b61e696aeaef62f099abb6dd6b14257c7'
 ARG BASE_IMAGE='python'
-ARG BASE_TAG='3.12-slim-trixie@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9'
+ARG BASE_TAG='3.12-slim-trixie@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f'
 
 FROM $REGISTRY/$BUILD_IMAGE:$BUILD_TAG AS builder
 ENV DEBIAN_FRONTEND=noninteractive
